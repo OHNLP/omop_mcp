@@ -1,0 +1,84 @@
+{
+  "person": ["gender_concept_id", "race_concept_id", "ethnicity_concept_id"],
+  "observation_period": ["period_type_concept_id"],
+  "visit_occurrence": [
+    "visit_concept_id",
+    "visit_type_concept_id",
+    "admitting_source_concept_id",
+    "discharge_to_concept_id"
+  ],
+  "condition_occurrence": [
+    "condition_concept_id",
+    "condition_type_concept_id",
+    "condition_status_concept_id"
+  ],
+  "drug_exposure": [
+    "drug_concept_id",
+    "drug_type_concept_id",
+    "route_concept_id",
+    "dose_unit_concept_id"
+  ],
+  "procedure_occurrence": [
+    "procedure_concept_id",
+    "procedure_type_concept_id",
+    "modifier_concept_id"
+  ],
+  "device_exposure": ["device_concept_id", "device_type_concept_id"],
+  "measurement": [
+    "measurement_concept_id",
+    "measurement_type_concept_id",
+    "operator_concept_id",
+    "value_as_concept_id",
+    "unit_concept_id"
+  ],
+  "observation": [
+    "observation_concept_id",
+    "observation_type_concept_id",
+    "value_as_concept_id",
+    "qualifier_concept_id",
+    "unit_concept_id"
+  ],
+  "death": ["death_type_concept_id", "cause_concept_id"],
+  "note": ["note_type_concept_id", "note_class_concept_id"],
+  "specimen": [
+    "specimen_concept_id",
+    "specimen_type_concept_id",
+    "unit_concept_id",
+    "anatomic_site_concept_id",
+    "disease_status_concept_id"
+  ],
+  "fact_relationship": [
+    "domain_concept_id_1",
+    "domain_concept_id_2",
+    "relationship_concept_id"
+  ],
+  "location": ["country_concept_id", "location_source_concept_id"],
+  "care_site": ["place_of_service_concept_id"],
+  "provider": [
+    "specialty_concept_id",
+    "care_site_concept_id",
+    "gender_concept_id"
+  ],
+  "payer_plan_period": [
+    "payer_concept_id",
+    "plan_concept_id",
+    "sponsor_concept_id",
+    "stop_reason_concept_id"
+  ],
+  "cost": ["cost_type_concept_id", "currency_concept_id"],
+  "drug_strength": [
+    "drug_concept_id",
+    "ingredient_concept_id",
+    "amount_unit_concept_id",
+    "numerator_unit_concept_id",
+    "denominator_unit_concept_id"
+  ],
+  "cohort": ["cohort_definition_concept_id"],
+  "cohort_definition": ["definition_type_concept_id", "subject_concept_id"],
+  "episode": [
+    "episode_concept_id",
+    "episode_object_concept_id",
+    "episode_type_concept_id"
+  ],
+  "episode_event": ["episode_event_field_concept_id"]
+}
