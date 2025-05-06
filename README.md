@@ -37,8 +37,10 @@ The OMOP MCP server provides the `find_omop_concept` tool for:
 
 ## Usage Example
 
-It is recommended to specify the OMOP field and table name in the prompt for improved accuracy.
-Refer to [omop_concept_id_fields.json](src/omop_mcp/data/omop_concept_id_fields.json) for the list of OMOP fields and tables that store concept IDs.
+- It is recommended to specify the OMOP field and table name in the prompt for improved accuracy.
+  Refer to [omop_concept_id_fields.json](src/omop_mcp/data/omop_concept_id_fields.json) for the list of OMOP fields and tables that store concept IDs.
+
+- You can specify preferred vocabularies for the mapping in order of priority (e.g., "SNOMED preferred" or "LOINC > SNOMED > RxNorm").
 
 **Prompt:**
 "Map 'DC/DISC TO REHAB' for the 'discharge_to_concept_id' field in the 'visit_occurrence' table"
