@@ -9,18 +9,46 @@ with open("src/omop_mcp/data/omop_concept_id_fields.json", "r") as f:
 
 mcp = FastMCP("omop_concept_mapper")
 
+MCP_DOC_INSTRUCTION = (
+    "When selecting the best OMOP concept and vocabulary, always refer to the "
+    "official OMOP CDM v5.4 documentation: "
+    "https://ohdsi.github.io/CommonDataModel/faq.html and "
+    "https://ohdsi.github.io/CommonDataModel/vocabulary.html. "
+    "Use the mapping conventions, standard concept definitions, and vocabulary "
+    "guidance provided there to ensure your selection is accurate and consistent "
+    "with OMOP best practices. Prefer concepts that are marked as 'Standard' and "
+    "'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED "
+    "for conditions, RxNorm for drugs, LOINC for measurements)."
+)
+
 
 @mcp.tool()
 def find_omop_concept(keyword: str, omop_table: str, omop_field: str) -> dict:
-    """Find the best-matching OMOP concept for a given keyword, table, and field."""
+    """
+    Find the best-matching OMOP concept for a given keyword, table, and field.
+    INSTRUCTION: When selecting the best OMOP concept and vocabulary, always
+    refer to the official OMOP CDM v5.4 documentation:
+    https://ohdsi.github.io/CommonDataModel/faq.html and
+    https://ohdsi.github.io/CommonDataModel/vocabulary.html.
+    Use the mapping conventions, standard concept definitions, and vocabulary
+    guidance provided there to ensure your selection is accurate and
+    consistent with OMOP best practices. Prefer concepts that are marked as
+    'Standard' and 'Valid', and use the recommended vocabularies for each
+    domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for
+    measurements).
+    """
     # Validate OMOP table and field
     if omop_table not in OMOP_CDM:
-        return {"error": (f"OMOP table '{omop_table}' not found in OMOP CDM.")}
+        return {
+            "error": (f"OMOP table '{omop_table}' not found in OMOP CDM."),
+            "instruction": MCP_DOC_INSTRUCTION,
+        }
     if omop_field not in OMOP_CDM[omop_table]:
         return {
             "error": (
                 f"Field '{omop_field}' not found in OMOP table " f"'{omop_table}'."
-            )
+            ),
+            "instruction": MCP_DOC_INSTRUCTION,
         }
 
     url = "https://athena.ohdsi.org/api/v1/concepts"
@@ -38,7 +66,10 @@ def find_omop_concept(keyword: str, omop_table: str, omop_field: str) -> dict:
         response.raise_for_status()
         data = response.json()
     except Exception as e:
-        return {"error": (f"Failed to query Athena: {e}")}
+        return {
+            "error": (f"Failed to query Athena: {e}"),
+            "instruction": MCP_DOC_INSTRUCTION,
+        }
 
     concepts = []
     if isinstance(data, list):
@@ -50,7 +81,10 @@ def find_omop_concept(keyword: str, omop_table: str, omop_field: str) -> dict:
                 break
 
     if not concepts:
-        return {"error": ("No results found or unexpected response structure.")}
+        return {
+            "error": ("No results found or unexpected response structure."),
+            "instruction": MCP_DOC_INSTRUCTION,
+        }
 
     # Prioritize Standard and Valid concepts
     prioritized = []
@@ -78,6 +112,7 @@ def find_omop_concept(keyword: str, omop_table: str, omop_field: str) -> dict:
         "validity": best.get("validity", best.get("invalidReason", "")),
         "domain": best.get("domain", best.get("domainId", "")),
         "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
+        "instruction": MCP_DOC_INSTRUCTION,
     }
 
 
