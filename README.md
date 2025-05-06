@@ -1,111 +1,66 @@
-# omop_mcp MCP server
+# OMOP MCP Server
 
-omop medical terminology mapping
+Model Context Protocol (MCP) server for mapping clinical terminology to OMOP concepts using Large Language Models (LLMs).
 
-## Components
+## Installation
 
-### Resources
+### Configuration for Claude Desktop
 
-The server implements a simple note storage system with:
-- Custom note:// URI scheme for accessing individual notes
-- Each note resource has a name, description and text/plain mimetype
+Add the following configuration to your `claude_desktop_config.json` file:
 
-### Prompts
+**Location:**
 
-The server provides a single prompt:
-- summarize-notes: Creates summaries of all stored notes
-  - Optional "style" argument to control detail level (brief/detailed)
-  - Generates prompt combining all current notes with style preference
+- MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
-### Tools
+**Configuration:**
 
-The server implements one tool:
-- add-note: Adds a new note to the server
-  - Takes "name" and "content" as required string arguments
-  - Updates server state and notifies clients of resource changes
-
-## Configuration
-
-[TODO: Add configuration details specific to your implementation]
-
-## Quickstart
-
-### Install
-
-#### Claude Desktop
-
-On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
-On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
-
-<details>
-  <summary>Development/Unpublished Servers Configuration</summary>
-  ```
+```json
+{
   "mcpServers": {
     "omop_mcp": {
       "command": "uv",
-      "args": [
-        "--directory",
-        "/Users/jahn6/Projects/omop_mcp",
-        "run",
-        "omop_mcp"
-      ]
+      "args": ["--directory", "<path-to-local-repo>", "run", "omop_mcp"]
     }
   }
-  ```
-</details>
-
-<details>
-  <summary>Published Servers Configuration</summary>
-  ```
-  "mcpServers": {
-    "omop_mcp": {
-      "command": "uvx",
-      "args": [
-        "omop_mcp"
-      ]
-    }
-  }
-  ```
-</details>
-
-## Development
-
-### Building and Publishing
-
-To prepare the package for distribution:
-
-1. Sync dependencies and update lockfile:
-```bash
-uv sync
+}
 ```
 
-2. Build package distributions:
-```bash
-uv build
+## Features
+
+The OMOP MCP server provides the `find_omop_concept` tool for:
+
+- Mapping clinical terminology to OMOP concepts
+- Validating terminology mappings
+- Searching OMOP vocabulary
+- Converting between different clinical coding systems
+
+## Usage Example
+
+**Prompt:**
+"Map 'Rehab' for the 'discharge_to_concept_id' field in the 'visit_occurrence' table"
+
+**Request:**
+
+```json
+{
+  "keyword": "discharge to rehabilitation",
+  "omop_field": "discharge_to_concept_id",
+  "omop_table": "visit_occurrence"
+}
 ```
 
-This will create source and wheel distributions in the `dist/` directory.
+**Response:**
 
-3. Publish to PyPI:
-```bash
-uv publish
+```json
+{
+  "id": 762906,
+  "code": "433591000124103",
+  "name": "Discharge to rehabilitation facility",
+  "class": "Procedure",
+  "concept": "Standard",
+  "validity": "Valid",
+  "domain": "Observation",
+  "vocab": "SNOMED"
+}
 ```
-
-Note: You'll need to set PyPI credentials via environment variables or command flags:
-- Token: `--token` or `UV_PUBLISH_TOKEN`
-- Or username/password: `--username`/`UV_PUBLISH_USERNAME` and `--password`/`UV_PUBLISH_PASSWORD`
-
-### Debugging
-
-Since MCP servers run over stdio, debugging can be challenging. For the best debugging
-experience, we strongly recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector).
-
-
-You can launch the MCP Inspector via [`npm`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm) with this command:
-
-```bash
-npx @modelcontextprotocol/inspector uv --directory /Users/jahn6/Projects/omop_mcp run omop-mcp
-```
-
-
-Upon launching, the Inspector will display a URL that you can access in your browser to begin debugging.
