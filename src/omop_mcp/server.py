@@ -1,7 +1,4 @@
 import json
-import os
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -24,9 +21,10 @@ MCP_DOC_INSTRUCTION = (
     "https://ohdsi.github.io/CommonDataModel/vocabulary.html. "
     "Use the mapping conventions, standard concept definitions, and vocabulary "
     "guidance provided there to ensure your selection is accurate and consistent "
-    "with OMOP best practices. Prefer concepts that are marked as 'Standard' and "
-    "'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED "
-    "for conditions, RxNorm for drugs, LOINC for measurements)."
+    "with OMOP best practices. Prefer concepts that are marked as 'Standard' and 'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for measurements, etc.) unless otherwise specified.\n\n"
+    "Return ONLY the mapping result in this exact tabular format:\n"
+    "ID | CODE | NAME | CLASS | CONCEPT | VALIDITY | DOMAIN | VOCAB\n"
+    "Do not include any other text or explanations unless there are critical warnings."
 )
 
 # Initialize server
