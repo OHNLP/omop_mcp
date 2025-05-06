@@ -11,3 +11,5 @@ wheels/
 
 # Scratch
 scratch/
+
+.DS_Store
