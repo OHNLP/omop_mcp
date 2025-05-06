@@ -1,7 +1,7 @@
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import aiohttp
 import mcp.types as types
