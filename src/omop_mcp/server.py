@@ -29,17 +29,8 @@ MCP_DOC_INSTRUCTION = (
     "for conditions, RxNorm for drugs, LOINC for measurements)."
 )
 
-
-@asynccontextmanager
-async def server_lifespan(server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
-    """Manage server startup and shutdown lifecycle."""
-    # Initialize HTTP session
-    async with aiohttp.ClientSession() as session:
-        yield {"http_session": session}
-
-
-# Initialize server with lifespan
-mcp = FastMCP("omop_concept_mapper", lifespan=server_lifespan)
+# Initialize server
+mcp = FastMCP("omop_concept_mapper")
 
 
 @mcp.resource("omop://tables")
@@ -96,73 +87,71 @@ async def find_omop_concept(
             "instruction": MCP_DOC_INSTRUCTION,
         }
 
-    # Get HTTP session from lifespan context
-    ctx = mcp.request_context
-    session: aiohttp.ClientSession = ctx.lifespan_context["http_session"]
-
-    url = "https://athena.ohdsi.org/api/v1/concepts"
-    params = {"query": keyword}
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/111.0.0.0 Safari/537.36"
-        )
-    }
-
-    try:
-        async with session.get(url, params=params, headers=headers) as response:
-            response.raise_for_status()
-            data = await response.json()
-    except aiohttp.ClientError as e:
-        return {
-            "error": f"Failed to query Athena: {str(e)}",
-            "instruction": MCP_DOC_INSTRUCTION,
+    # Create a new session for each request
+    async with aiohttp.ClientSession() as session:
+        url = "https://athena.ohdsi.org/api/v1/concepts"
+        params = {"query": keyword}
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/111.0.0.0 Safari/537.36"
+            )
         }
 
-    concepts = []
-    if isinstance(data, list):
-        concepts = data
-    elif isinstance(data, dict):
-        for key in ("content", "results", "items", "concepts"):
-            if key in data and isinstance(data[key], list):
-                concepts = data[key]
-                break
+        try:
+            async with session.get(url, params=params, headers=headers) as response:
+                response.raise_for_status()
+                data = await response.json()
+        except aiohttp.ClientError as e:
+            return {
+                "error": f"Failed to query Athena: {str(e)}",
+                "instruction": MCP_DOC_INSTRUCTION,
+            }
 
-    if not concepts:
+        concepts = []
+        if isinstance(data, list):
+            concepts = data
+        elif isinstance(data, dict):
+            for key in ("content", "results", "items", "concepts"):
+                if key in data and isinstance(data[key], list):
+                    concepts = data[key]
+                    break
+
+        if not concepts:
+            return {
+                "error": "No results found or unexpected response structure.",
+                "instruction": MCP_DOC_INSTRUCTION,
+            }
+
+        # Prioritize Standard and Valid concepts
+        prioritized = []
+        for c in concepts:
+            is_standard = (
+                c.get("standardConcept", "").lower() == "standard"
+                or c.get("standardConcept", "").upper() == "S"
+            )
+            is_valid = c.get("validity", c.get("invalidReason", "")).lower() == "valid"
+            if is_standard and is_valid:
+                prioritized.append(c)
+
+        if not prioritized:
+            prioritized = concepts
+
+        # LLM-based reasoning placeholder: just return the first for now
+        best = prioritized[0]
+
         return {
-            "error": "No results found or unexpected response structure.",
+            "id": best.get("id", ""),
+            "code": best.get("code", ""),
+            "name": best.get("name", ""),
+            "class": best.get("classId", best.get("className", "")),
+            "concept": best.get("standardConcept", ""),
+            "validity": best.get("validity", best.get("invalidReason", "")),
+            "domain": best.get("domain", best.get("domainId", "")),
+            "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
             "instruction": MCP_DOC_INSTRUCTION,
         }
-
-    # Prioritize Standard and Valid concepts
-    prioritized = []
-    for c in concepts:
-        is_standard = (
-            c.get("standardConcept", "").lower() == "standard"
-            or c.get("standardConcept", "").upper() == "S"
-        )
-        is_valid = c.get("validity", c.get("invalidReason", "")).lower() == "valid"
-        if is_standard and is_valid:
-            prioritized.append(c)
-
-    if not prioritized:
-        prioritized = concepts
-
-    # LLM-based reasoning placeholder: just return the first for now
-    best = prioritized[0]
-
-    return {
-        "id": best.get("id", ""),
-        "code": best.get("code", ""),
-        "name": best.get("name", ""),
-        "class": best.get("classId", best.get("className", "")),
-        "concept": best.get("standardConcept", ""),
-        "validity": best.get("validity", best.get("invalidReason", "")),
-        "domain": best.get("domain", best.get("domainId", "")),
-        "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
-        "instruction": MCP_DOC_INSTRUCTION,
-    }
 
 
 if __name__ == "__main__":
