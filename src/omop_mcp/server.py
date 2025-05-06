@@ -1,14 +1,20 @@
 import json
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict, List
 
 import aiohttp
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 
+# Get absolute path to the data file
+BASE_DIR = Path(__file__).parent
+DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
+
 # Load OMOP CDM table/field mapping from JSON file
-with open("src/omop_mcp/data/omop_concept_id_fields.json", "r") as f:
+with open(DATA_FILE, "r") as f:
     OMOP_CDM = json.load(f)
 
 MCP_DOC_INSTRUCTION = (
@@ -160,4 +166,4 @@ async def find_omop_concept(
 
 
 if __name__ == "__main__":
-    mcp.serve()
+    mcp.run()
