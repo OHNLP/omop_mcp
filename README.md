@@ -1,6 +1,6 @@
 # OMOP MCP Server
 
-Model Context Protocol (MCP) server for mapping clinical terminology to OMOP concepts using Large Language Models (LLMs).
+Model Context Protocol (MCP) server for mapping clinical terminology to Observational Medical Outcomes Partnership (OMOP) concepts using Large Language Models (LLMs).
 
 ## Installation
 
@@ -43,29 +43,21 @@ The OMOP MCP server provides the `find_omop_concept` tool for:
 - You can specify preferred vocabularies for the mapping in order of priority (e.g., "SNOMED preferred" or "LOINC > SNOMED > RxNorm").
 
 **Prompt:**
-"Map 'DC/DISC TO REHAB' for the 'discharge_to_concept_id' field in the 'visit_occurrence' table"
-
-**Request:**
-
-```json
-{
-  "keyword": "discharge to rehabilitation",
-  "omop_field": "discharge_to_concept_id",
-  "omop_table": "visit_occurrence"
-}
-```
+"Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
 
 **Response:**
 
 ```json
 {
-  "id": 762906,
-  "code": "433591000124103",
-  "name": "Discharge to rehabilitation facility",
-  "class": "Procedure",
+  "id": 46235152,
+  "code": "75539-7",
+  "name": "Body temperature - Temporal artery",
+  "class": "Clinical Observation",
   "concept": "Standard",
   "validity": "Valid",
-  "domain": "Observation",
-  "vocab": "SNOMED"
+  "domain": "Measurement",
+  "vocab": "LOINC",
+  "url": "https://athena.ohdsi.org/search-terms/terms/46235152",
+  "processing_time_sec": "0.601"
 }
 ```
