@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -70,18 +71,24 @@ async def find_omop_concept(
         omop_field: The concept ID field name
 
     Returns:
-        Dict containing the best matching concept or error information
+        Dict containing the best matching concept or error information, including processing time in seconds.
     """
+
+    start = time.perf_counter()
     # Validate OMOP table and field
     if omop_table not in OMOP_CDM:
+        elapsed = time.perf_counter() - start
         return {
             "error": f"OMOP table '{omop_table}' not found in OMOP CDM.",
             "instruction": MCP_DOC_INSTRUCTION,
+            "processing_time_sec": f"{elapsed:.3f}",
         }
     if omop_field not in OMOP_CDM[omop_table]:
+        elapsed = time.perf_counter() - start
         return {
             "error": f"Field '{omop_field}' not found in OMOP table '{omop_table}'.",
             "instruction": MCP_DOC_INSTRUCTION,
+            "processing_time_sec": f"{elapsed:.3f}",
         }
 
     # Create a new session for each request
@@ -101,9 +108,11 @@ async def find_omop_concept(
                 response.raise_for_status()
                 data = await response.json()
         except aiohttp.ClientError as e:
+            elapsed = time.perf_counter() - start
             return {
                 "error": f"Failed to query Athena: {str(e)}",
                 "instruction": MCP_DOC_INSTRUCTION,
+                "processing_time_sec": f"{elapsed:.3f}",
             }
 
         concepts = []
@@ -116,9 +125,11 @@ async def find_omop_concept(
                     break
 
         if not concepts:
+            elapsed = time.perf_counter() - start
             return {
                 "error": "No results found or unexpected response structure.",
                 "instruction": MCP_DOC_INSTRUCTION,
+                "processing_time_sec": f"{elapsed:.3f}",
             }
 
         # Prioritize Standard and Valid concepts
@@ -133,6 +144,7 @@ async def find_omop_concept(
                 prioritized.append(c)
 
         if not prioritized:
+            elapsed = time.perf_counter() - start
             return {
                 "id": "",
                 "code": "",
@@ -144,11 +156,12 @@ async def find_omop_concept(
                 "vocab": "",
                 "url": "",
                 "reason": "No Standard and Valid concept found for the given term.",
+                "processing_time_sec": f"{elapsed:.3f}",
             }
 
         # LLM-based reasoning placeholder: just return the first for now
         best = prioritized[0]
-
+        elapsed = time.perf_counter() - start
         return {
             "id": best.get("id", ""),
             "code": best.get("code", ""),
@@ -160,6 +173,7 @@ async def find_omop_concept(
             "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
             "url": f"https://athena.ohdsi.org/search-terms/terms/{best.get('id', '')}",
             "reason": "This concept was selected because...",
+            "processing_time_sec": f"{elapsed:.3f}",
         }
 
 
@@ -182,6 +196,7 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             "vocab",
             "url",
             "reason",
+            "processing_time_sec",
         ]
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
