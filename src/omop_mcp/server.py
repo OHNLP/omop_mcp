@@ -146,7 +146,8 @@ async def find_omop_concept(
             "validity": best.get("validity", best.get("invalidReason", "")),
             "domain": best.get("domain", best.get("domainId", "")),
             "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
-            "instruction": MCP_DOC_INSTRUCTION,
+            "url": f"https://athena.ohdsi.org/search-terms/terms/{best.get('id', '')}",
+            "reason": "This concept was selected because...",
         }
 
 
