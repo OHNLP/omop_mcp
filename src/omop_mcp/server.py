@@ -132,7 +132,18 @@ async def find_omop_concept(
                 prioritized.append(c)
 
         if not prioritized:
-            prioritized = concepts
+            return {
+                "id": "",
+                "code": "",
+                "name": "",
+                "class": "",
+                "concept": "",
+                "validity": "",
+                "domain": "",
+                "vocab": "",
+                "url": "",
+                "reason": "No Standard and Valid concept found for the given term.",
+            }
 
         # LLM-based reasoning placeholder: just return the first for now
         best = prioritized[0]
