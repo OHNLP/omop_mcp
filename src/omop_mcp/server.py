@@ -14,18 +14,16 @@ DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
 with open(DATA_FILE, "r") as f:
     OMOP_CDM = json.load(f)
 
-MCP_DOC_INSTRUCTION = (
-    "When selecting the best OMOP concept and vocabulary, always refer to the "
-    "official OMOP CDM v5.4 documentation: "
-    "https://ohdsi.github.io/CommonDataModel/faq.html and "
-    "https://ohdsi.github.io/CommonDataModel/vocabulary.html. "
-    "Use the mapping conventions, standard concept definitions, and vocabulary "
-    "guidance provided there to ensure your selection is accurate and consistent "
-    "with OMOP best practices. Prefer concepts that are marked as 'Standard' and 'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for measurements, etc.) unless otherwise specified.\n\n"
-    "Return ONLY the mapping result in this exact tabular format:\n"
-    "ID | CODE | NAME | CLASS | CONCEPT | VALIDITY | DOMAIN | VOCAB\n"
-    "Do not include any other text or explanations unless there are critical warnings."
-)
+MCP_DOC_INSTRUCTION = """
+When selecting the best OMOP concept and vocabulary, always refer to the official OMOP CDM v5.4 documentation: https://ohdsi.github.io/CommonDataModel/faq.html and https://ohdsi.github.io/CommonDataModel/vocabulary.html.
+Use the mapping conventions, standard concept definitions, and vocabulary guidance provided there to ensure your selection is accurate and consistent with OMOP best practices. Prefer concepts that are marked as 'Standard' and 'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for measurements, etc.) unless otherwise specified.
+
+Return mapping result using ALL fields in this exact format:
+ID | CODE | NAME | CLASS | CONCEPT | VALIDITY | DOMAIN | VOCAB | URL | REASON
+The URL field should be a direct link to the concept in Athena.
+For the REASON field, provide a concise explanation of why this concept was selected, any special considerations about the mapping, and how additional details from the source term should be handled in OMOP.
+Do not include any other text or explanations unless there are critical warnings.
+""".strip()
 
 # Initialize server
 mcp = FastMCP("omop_concept_mapper")
