@@ -155,11 +155,9 @@ async def find_omop_concept(
                 "domain": "",
                 "vocab": "",
                 "url": "",
-                "reason": "No Standard and Valid concept found for the given term.",
                 "processing_time_sec": f"{elapsed:.3f}",
             }
 
-        # LLM-based reasoning placeholder: just return the first for now
         best = prioritized[0]
         elapsed = time.perf_counter() - start
         return {
@@ -172,7 +170,6 @@ async def find_omop_concept(
             "domain": best.get("domain", best.get("domainId", "")),
             "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
             "url": f"https://athena.ohdsi.org/search-terms/terms/{best.get('id', '')}",
-            "reason": "This concept was selected because...",
             "processing_time_sec": f"{elapsed:.3f}",
         }
 
@@ -195,7 +192,6 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             "domain",
             "vocab",
             "url",
-            "reason",
             "processing_time_sec",
         ]
         writer = csv.DictWriter(output, fieldnames=fieldnames)
