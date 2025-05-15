@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 from pathlib import Path
 from typing import Any, Dict, List
@@ -6,7 +8,6 @@ import aiohttp
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 
-# Get absolute path to the data file
 BASE_DIR = Path(__file__).parent
 DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
 
@@ -160,6 +161,39 @@ async def find_omop_concept(
             "url": f"https://athena.ohdsi.org/search-terms/terms/{best.get('id', '')}",
             "reason": "This concept was selected because...",
         }
+
+
+@mcp.tool()
+async def batch_map_concepts_from_csv(csv_path: str) -> str:
+    """
+    Process a CSV file of keywords, mapping each row and returning a CSV with mapping results appended as new columns.
+    """
+    output = io.StringIO()
+    with open(csv_path, newline="", encoding="utf-8") as infile:
+        reader = csv.DictReader(infile)
+        fieldnames = reader.fieldnames + [
+            "id",
+            "code",
+            "name",
+            "class",
+            "concept",
+            "validity",
+            "domain",
+            "vocab",
+            "url",
+            "reason",
+        ]
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in reader:
+            keyword = row.get("keywords", "")
+            omop_field = row.get("omop_field", "")
+            omop_table = row.get("omop_table", "")
+            result = await find_omop_concept(keyword, omop_table, omop_field)
+            # Merge result into row
+            row.update(result)
+            writer.writerow(row)
+    return output.getvalue()
 
 
 if __name__ == "__main__":
