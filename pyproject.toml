@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "omop medical terminology mapping"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [ "mcp>=1.7.1", "mcp-use", "langchain-openai", "python-dotenv"]
+dependencies = [ "mcp>=1.7.1", "mcp-use", "langchain-openai", "python-dotenv", "aiohttp"]
 [[project.authors]]
 name = "Jaerong Ahn"
 email = "jaerongahn@gmail.com"

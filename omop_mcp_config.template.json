@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "omop_mcp": {
+      "command": "uv",
+      "args": ["--directory", "<path-to-local-repo>", "run", "omop_mcp"]
+    }
+  }
+}
