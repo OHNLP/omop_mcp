@@ -13,3 +13,4 @@ wheels/
 scratch/
 
 .DS_Store
+.env
