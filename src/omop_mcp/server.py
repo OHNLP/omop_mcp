@@ -207,5 +207,9 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
     return output.getvalue()
 
 
-if __name__ == "__main__":
+def main():
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()
