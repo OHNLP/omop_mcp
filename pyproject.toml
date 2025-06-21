@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "omop medical terminology mapping"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [ "mcp>=1.7.1", "mcp-use", "langchain-openai", "python-dotenv", "aiohttp"]
+dependencies = [ "mcp>=1.7.1", "mcp-use", "langchain-openai", "python-dotenv", "aiohttp", "langchain-huggingface"]
 [[project.authors]]
 name = "Jaerong Ahn"
 email = "jaerongahn@gmail.com"
@@ -17,7 +17,7 @@ build-backend = "hatchling.build"
 omop_mcp = "omop_mcp:main"
 
 [tool.flake8]
-ignore = ["E501"]
+ignore = "E501"
 
 [tool.black]
 line-length = 88
