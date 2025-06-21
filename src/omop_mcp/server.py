@@ -20,8 +20,19 @@ MCP_DOC_INSTRUCTION = """
 When selecting the best OMOP concept and vocabulary, always refer to the official OMOP CDM v5.4 documentation: https://ohdsi.github.io/CommonDataModel/faq.html and https://ohdsi.github.io/CommonDataModel/vocabulary.html.
 Use the mapping conventions, standard concept definitions, and vocabulary guidance provided there to ensure your selection is accurate and consistent with OMOP best practices. Prefer concepts that are marked as 'Standard' and 'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for measurements, etc.) unless otherwise specified.
 
-Return mapping result using ALL fields in this exact format:
-CONCEPT_ID | CODE | NAME | CLASS | CONCEPT | VALIDITY | DOMAIN | VOCAB | URL | PROCESSING_TIME_SEC | REASON
+Return mapping result using ALL fields in this exact format, with each field on a new line:
+CONCEPT_ID: ...
+CODE: ...
+NAME: ...
+CLASS: ...
+CONCEPT: ...
+VALIDITY: ...
+DOMAIN: ...
+VOCAB: ...
+URL: ...
+PROCESSING_TIME_SEC: ...
+REASON: ...
+
 The URL field should be a direct link to the concept in Athena.
 For the REASON field, provide a concise explanation of why this concept was selected, any special considerations about the mapping, and how additional details from the source term should be handled in OMOP.
 Do not include any other text or explanations unless there are critical warnings.
@@ -40,6 +51,18 @@ async def list_omop_tables() -> Dict[str, List[str]]:
 @mcp.prompt()
 async def map_clinical_concept() -> types.GetPromptResult:
     """Create a prompt for mapping clinical concepts."""
+    example_output = """CONCEPT_ID: 46235152
+CODE: 75539-7
+NAME: Body temperature - Temporal artery
+CLASS: Clinical Observation
+CONCEPT: Standard
+VALIDITY: Valid
+DOMAIN: Measurement
+VOCAB: LOINC
+URL: https://athena.ohdsi.org/search-terms/terms/46235152
+PROCESSING_TIME_SEC: 1.453
+REASON: This LOINC concept specifically represents body temperature measured at the temporal artery, which is what a temporal scanner measures. The "RR" in your source term likely refers to "Recovery Room" or another location/department indicator, but in OMOP, the location would typically be captured in a separate field rather than as part of the measurement concept itself."""
+
     return types.GetPromptResult(
         description="Map a clinical term to OMOP concept",
         messages=[
@@ -51,7 +74,18 @@ async def map_clinical_concept() -> types.GetPromptResult:
                 role="user",
                 content=types.TextContent(
                     type="text",
-                    text="Please help map this clinical term to an OMOP concept: {{term}}",
+                    text="Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table.",
+                ),
+            ),
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(type="text", text=example_output),
+            ),
+            types.PromptMessage(
+                role="user",
+                content=types.TextContent(
+                    type="text",
+                    text="{{term}}",
                 ),
             ),
         ],
@@ -71,25 +105,11 @@ async def find_omop_concept(
         omop_field: The concept ID field name
 
     Returns:
-        Dict containing the best matching concept or error information, including processing time in seconds.
+        Dict containing the best matching concept or error information.
+        Processing time is only returned on success.
     """
 
     start = time.perf_counter()
-    # Validate OMOP table and field
-    if omop_table not in OMOP_CDM:
-        elapsed = time.perf_counter() - start
-        return {
-            "error": f"OMOP table '{omop_table}' not found in OMOP CDM.",
-            "instruction": MCP_DOC_INSTRUCTION,
-            "processing_time_sec": f"{elapsed:.3f}",
-        }
-    if omop_field not in OMOP_CDM[omop_table]:
-        elapsed = time.perf_counter() - start
-        return {
-            "error": f"Field '{omop_field}' not found in OMOP table '{omop_table}'.",
-            "instruction": MCP_DOC_INSTRUCTION,
-            "processing_time_sec": f"{elapsed:.3f}",
-        }
 
     # Create a new session for each request
     async with aiohttp.ClientSession() as session:
@@ -108,11 +128,8 @@ async def find_omop_concept(
                 response.raise_for_status()
                 data = await response.json()
         except aiohttp.ClientError as e:
-            elapsed = time.perf_counter() - start
             return {
                 "error": f"Failed to query Athena: {str(e)}",
-                "instruction": MCP_DOC_INSTRUCTION,
-                "processing_time_sec": f"{elapsed:.3f}",
             }
 
         concepts = []
@@ -125,11 +142,8 @@ async def find_omop_concept(
                     break
 
         if not concepts:
-            elapsed = time.perf_counter() - start
             return {
                 "error": "No results found or unexpected response structure.",
-                "instruction": MCP_DOC_INSTRUCTION,
-                "processing_time_sec": f"{elapsed:.3f}",
             }
 
         # Prioritize Standard and Valid concepts
@@ -144,18 +158,8 @@ async def find_omop_concept(
                 prioritized.append(c)
 
         if not prioritized:
-            elapsed = time.perf_counter() - start
             return {
-                "concept_id": "",
-                "code": "",
-                "name": "",
-                "class": "",
-                "concept": "",
-                "validity": "",
-                "domain": "",
-                "vocab": "",
-                "url": "",
-                "processing_time_sec": f"{elapsed:.3f}",
+                "error": "No 'Standard' and 'Valid' concept found for the given keyword.",
             }
 
         best = prioritized[0]
