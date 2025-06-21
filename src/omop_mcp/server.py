@@ -21,7 +21,7 @@ When selecting the best OMOP concept and vocabulary, always refer to the officia
 Use the mapping conventions, standard concept definitions, and vocabulary guidance provided there to ensure your selection is accurate and consistent with OMOP best practices. Prefer concepts that are marked as 'Standard' and 'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for measurements, etc.) unless otherwise specified.
 
 Return mapping result using ALL fields in this exact format:
-ID | CODE | NAME | CLASS | CONCEPT | VALIDITY | DOMAIN | VOCAB | URL | REASON
+CONCEPT_ID | CODE | NAME | CLASS | CONCEPT | VALIDITY | DOMAIN | VOCAB | URL | PROCESSING_TIME_SEC | REASON
 The URL field should be a direct link to the concept in Athena.
 For the REASON field, provide a concise explanation of why this concept was selected, any special considerations about the mapping, and how additional details from the source term should be handled in OMOP.
 Do not include any other text or explanations unless there are critical warnings.
@@ -146,7 +146,7 @@ async def find_omop_concept(
         if not prioritized:
             elapsed = time.perf_counter() - start
             return {
-                "id": "",
+                "concept_id": "",
                 "code": "",
                 "name": "",
                 "class": "",
@@ -161,7 +161,7 @@ async def find_omop_concept(
         best = prioritized[0]
         elapsed = time.perf_counter() - start
         return {
-            "id": best.get("id", ""),
+            "concept_id": best.get("id", ""),
             "code": best.get("code", ""),
             "name": best.get("name", ""),
             "class": best.get("classId", best.get("className", "")),
@@ -183,7 +183,7 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
     with open(csv_path, newline="", encoding="utf-8") as infile:
         reader = csv.DictReader(infile)
         fieldnames = reader.fieldnames + [
-            "id",
+            "concept_id",
             "code",
             "name",
             "class",
