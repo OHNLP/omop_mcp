@@ -1,12 +1,49 @@
-import asyncio
 import os
 
 from dotenv import load_dotenv
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from mcp_use import MCPAgent, MCPClient
 
+# Copied from no_mcp.py to ensure the prompt is identical
+MCP_DOC_INSTRUCTION = """
+When selecting the best OMOP concept and vocabulary, always refer to the official OMOP CDM v5.4 documentation: https://ohdsi.github.io/CommonDataModel/faq.html and https://ohdsi.github.io/CommonDataModel/vocabulary.html.
+Use the mapping conventions, standard concept definitions, and vocabulary guidance provided there to ensure your selection is accurate and consistent with OMOP best practices. Prefer concepts that are marked as 'Standard' and 'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for measurements, etc.) unless otherwise specified.
 
-def get_agent():
+Return mapping result using ALL fields in this exact format, with each field on a new line:
+CONCEPT_ID: ...
+CODE: ...
+NAME: ...
+CLASS: ...
+CONCEPT: ...
+VALIDITY: ...
+DOMAIN: ...
+VOCAB: ...
+URL: ...
+PROCESSING_TIME_SEC: ...
+REASON: ...
+
+The URL field should be a direct link to the concept in Athena.
+For the REASON field, provide a concise explanation of why this concept was selected, any special considerations about the mapping, and how additional details from the source term should be handled in OMOP.
+Do not include any other text or explanations unless there are critical warnings.
+""".strip()
+
+EXAMPLE_OUTPUT = """CONCEPT_ID: 46235152
+CODE: 75539-7
+NAME: Body temperature - Temporal artery
+CLASS: Clinical Observation
+CONCEPT: Standard
+VALIDITY: Valid
+DOMAIN: Measurement
+VOCAB: LOINC
+URL: https://athena.ohdsi.org/search-terms/terms/46235152
+PROCESSING_TIME_SEC: 1.453
+REASON: This LOINC concept specifically represents body temperature measured at the temporal artery, which is what a temporal scanner measures. The "RR" in your source term likely refers to "Recovery Room" or another location/department indicator, but in OMOP, the location would typically be captured in a separate field rather than as part of the measurement concept itself."""
+
+EXAMPLE_INPUT = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
+
+
+def get_openai_agent():
     load_dotenv()
     config_dir = os.path.dirname(__file__)
     config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
@@ -15,27 +52,11 @@ def get_agent():
     return MCPAgent(llm=llm, client=client, max_steps=30)
 
 
-async def run_agent(prompt: str):
-    agent = get_agent()
-    return await agent.run(prompt)
-
-
-async def main():
-    load_dotenv()
-
-    # Use config file for local OMOP MCP server
-    config_dir = os.path.dirname(__file__)
-    config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
-    client = MCPClient.from_config_file(config_path)
-    llm = ChatOpenAI(model="gpt-4o")
-    agent = MCPAgent(llm=llm, client=client, max_steps=30)
-
-    result = await agent.run(
-        "Map `Temperature Temporal Scanner - RR` for "
-        "`measurement_concept_id` in the `measurement` table."
-    )
-    print(f"\nResult: {result}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+async def run_openai_agent(prompt: str):
+    agent = get_openai_agent()
+    history = [
+        SystemMessage(content=MCP_DOC_INSTRUCTION),
+        HumanMessage(content=EXAMPLE_INPUT),
+        AIMessage(content=EXAMPLE_OUTPUT),
+    ]
+    return await agent.run(query=prompt, external_history=history)
