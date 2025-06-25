@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from mcp_use import MCPAgent, MCPClient
 
 # Copied from no_mcp.py to ensure the prompt is identical
@@ -43,12 +43,22 @@ REASON: This LOINC concept specifically represents body temperature measured at 
 EXAMPLE_INPUT = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
 
 
-def get_openai_agent():
+def get_openai_agent(use_azure: bool = True):
     load_dotenv()
     config_dir = os.path.dirname(__file__)
     config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
     client = MCPClient.from_config_file(config_path)
-    llm = ChatOpenAI(model="gpt-4o")
+
+    if use_azure:
+        llm = AzureChatOpenAI(
+            azure_deployment=os.getenv("MODEL_NAME"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
+            api_version=os.getenv("AZURE_API_VERSION_WEST"),
+        )
+    else:
+        llm = ChatOpenAI(model="gpt-4o")
+
     return MCPAgent(llm=llm, client=client, max_steps=30)
 
 
