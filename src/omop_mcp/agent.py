@@ -1,9 +1,12 @@
 import os
+from typing import Literal
 
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from mcp_use import MCPAgent, MCPClient
+
+load_dotenv()
 
 # Copied from no_mcp.py to ensure the prompt is identical
 MCP_DOC_INSTRUCTION = """
@@ -28,6 +31,9 @@ For the REASON field, provide a concise explanation of why this concept was sele
 Do not include any other text or explanations unless there are critical warnings.
 """.strip()
 
+EXAMPLE_INPUT = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
+
+
 EXAMPLE_OUTPUT = """CONCEPT_ID: 46235152
 CODE: 75539-7
 NAME: Body temperature - Temporal artery
@@ -40,30 +46,42 @@ URL: https://athena.ohdsi.org/search-terms/terms/46235152
 PROCESSING_TIME_SEC: 1.453
 REASON: This LOINC concept specifically represents body temperature measured at the temporal artery, which is what a temporal scanner measures. The "RR" in your source term likely refers to "Recovery Room" or another location/department indicator, but in OMOP, the location would typically be captured in a separate field rather than as part of the measurement concept itself."""
 
-EXAMPLE_INPUT = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
 
-
-def get_openai_agent(use_azure: bool = True):
-    load_dotenv()
+def get_agent(
+    llm_provider: Literal["azure_openai", "openai"] = "azure_openai",
+) -> MCPAgent:
+    """
+    Create an MCPAgent using the specified LLM provider.
+    """
     config_dir = os.path.dirname(__file__)
     config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
     client = MCPClient.from_config_file(config_path)
 
-    if use_azure:
+    if llm_provider == "azure_openai":
         llm = AzureChatOpenAI(
             azure_deployment=os.getenv("MODEL_NAME"),
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
             api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
             api_version=os.getenv("AZURE_API_VERSION_WEST"),
         )
-    else:
+    elif llm_provider == "openai":
         llm = ChatOpenAI(model="gpt-4o")
+    else:
+        raise ValueError(
+            f"Unsupported llm_provider: {llm_provider}. "
+            "Valid options are 'azure_openai' or 'openai'."
+        )
 
     return MCPAgent(llm=llm, client=client, max_steps=30)
 
 
-async def run_openai_agent(prompt: str):
-    agent = get_openai_agent()
+async def run_agent(
+    prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
+):
+    """
+    Run the MCP agent with the given prompt and LLM provider.
+    """
+    agent = get_agent(llm_provider=llm_provider)
     history = [
         SystemMessage(content=MCP_DOC_INSTRUCTION),
         HumanMessage(content=EXAMPLE_INPUT),
