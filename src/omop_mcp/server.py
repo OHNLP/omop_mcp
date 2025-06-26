@@ -9,6 +9,8 @@ import aiohttp
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 
+from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
+
 BASE_DIR = Path(__file__).parent
 DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
 
@@ -16,30 +18,8 @@ DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
 with open(DATA_FILE, "r") as f:
     OMOP_CDM = json.load(f)
 
-MCP_DOC_INSTRUCTION = """
-When selecting the best OMOP concept and vocabulary, always refer to the official OMOP CDM v5.4 documentation: https://ohdsi.github.io/CommonDataModel/faq.html and https://ohdsi.github.io/CommonDataModel/vocabulary.html.
-Use the mapping conventions, standard concept definitions, and vocabulary guidance provided there to ensure your selection is accurate and consistent with OMOP best practices. Prefer concepts that are marked as 'Standard' and 'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for measurements, etc.) unless otherwise specified.
-
-Return mapping result using ALL fields in this exact format, with each field on a new line:
-CONCEPT_ID: ...
-CODE: ...
-NAME: ...
-CLASS: ...
-CONCEPT: ...
-VALIDITY: ...
-DOMAIN: ...
-VOCAB: ...
-URL: ...
-PROCESSING_TIME_SEC: ...
-REASON: ...
-
-The URL field should be a direct link to the concept in Athena.
-For the REASON field, provide a concise explanation of why this concept was selected, any special considerations about the mapping, and how additional details from the source term should be handled in OMOP.
-Do not include any other text or explanations unless there are critical warnings.
-""".strip()
-
 # Initialize server
-mcp = FastMCP("omop_concept_mapper")
+mcp = FastMCP(name="omop_concept_mapper")
 
 
 @mcp.resource("omop://tables")
@@ -51,18 +31,6 @@ async def list_omop_tables() -> Dict[str, List[str]]:
 @mcp.prompt()
 async def map_clinical_concept() -> types.GetPromptResult:
     """Create a prompt for mapping clinical concepts."""
-    example_output = """CONCEPT_ID: 46235152
-CODE: 75539-7
-NAME: Body temperature - Temporal artery
-CLASS: Clinical Observation
-CONCEPT: Standard
-VALIDITY: Valid
-DOMAIN: Measurement
-VOCAB: LOINC
-URL: https://athena.ohdsi.org/search-terms/terms/46235152
-PROCESSING_TIME_SEC: 1.453
-REASON: This LOINC concept specifically represents body temperature measured at the temporal artery, which is what a temporal scanner measures. The "RR" in your source term likely refers to "Recovery Room" or another location/department indicator, but in OMOP, the location would typically be captured in a separate field rather than as part of the measurement concept itself."""
-
     return types.GetPromptResult(
         description="Map a clinical term to OMOP concept",
         messages=[
@@ -74,12 +42,12 @@ REASON: This LOINC concept specifically represents body temperature measured at 
                 role="user",
                 content=types.TextContent(
                     type="text",
-                    text="Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table.",
+                    text=EXAMPLE_INPUT,
                 ),
             ),
             types.PromptMessage(
                 role="assistant",
-                content=types.TextContent(type="text", text=example_output),
+                content=types.TextContent(type="text", text=EXAMPLE_OUTPUT),
             ),
             types.PromptMessage(
                 role="user",
