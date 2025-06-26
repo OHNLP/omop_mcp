@@ -73,23 +73,38 @@ def ensure_processing_time_in_output(response: str, processing_time: str) -> str
 
         cleaned_lines.append(line)
 
-    # Add the processing time in the correct location (after URL)
-    if url_index >= 0:
-        cleaned_lines.insert(
-            url_index + 1, f"- **PROCESSING_TIME_SEC**: {processing_time}"
-        )
+    # Add the processing time in the correct location (after URL) only if we have a valid time
+    if processing_time is not None:
+        if url_index >= 0:
+            cleaned_lines.insert(
+                url_index + 1, f"- **PROCESSING_TIME_SEC**: {processing_time}"
+            )
+        else:
+            # Fallback: add before any explanatory text
+            insert_index = len(cleaned_lines)
+            for i, line in enumerate(cleaned_lines):
+                if line.strip().startswith("This concept") or line.strip().startswith(
+                    "The "
+                ):
+                    insert_index = i
+                    break
+            cleaned_lines.insert(
+                insert_index, f"- **PROCESSING_TIME_SEC**: {processing_time}"
+            )
     else:
-        # Fallback: add before any explanatory text
-        insert_index = len(cleaned_lines)
-        for i, line in enumerate(cleaned_lines):
-            if line.strip().startswith("This concept") or line.strip().startswith(
-                "The "
-            ):
-                insert_index = i
-                break
-        cleaned_lines.insert(
-            insert_index, f"- **PROCESSING_TIME_SEC**: {processing_time}"
-        )
+        # If processing time is None, add a note indicating it couldn't be captured
+        if url_index >= 0:
+            cleaned_lines.insert(url_index + 1, "- **PROCESSING_TIME_SEC**: None")
+        else:
+            # Fallback: add before any explanatory text
+            insert_index = len(cleaned_lines)
+            for i, line in enumerate(cleaned_lines):
+                if line.strip().startswith("This concept") or line.strip().startswith(
+                    "The "
+                ):
+                    insert_index = i
+                    break
+            cleaned_lines.insert(insert_index, "- **PROCESSING_TIME_SEC**: None")
 
     return "\n".join(cleaned_lines)
 
@@ -103,7 +118,7 @@ def get_real_processing_time() -> str:
             return server._last_processing_time
     except:
         pass
-    return "0.000"
+    return None
 
 
 def extract_processing_time_from_response(response: str) -> str:
@@ -133,7 +148,6 @@ def clean_url_formatting(response: str) -> str:
     markdown_link_pattern = r"\[([^\]]+)\]\((https://athena\.ohdsi\.org/[^)]+)\)"
 
     def replace_markdown_link(match):
-        text = match.group(1)
         url = match.group(2)
         return url
 
@@ -177,7 +191,7 @@ async def run_agent(
     processing_time = get_real_processing_time()
 
     # Fallback: extract from response if global variable doesn't work
-    if processing_time == "0.000" and isinstance(response, str):
+    if processing_time is None and isinstance(response, str):
         extracted_time = extract_processing_time_from_response(response)
         if extracted_time != "0.000":
             processing_time = extracted_time
@@ -196,7 +210,6 @@ async def run_llm_no_mcp(
     """
     Calls the LLM API directly with the provided prompt,
     using the same system message and few-shot example as the MCP agent.
-    This serves as a control experiment to compare performance without MCP tools.
     """
     load_dotenv()
 
@@ -233,7 +246,10 @@ async def run_llm_no_mcp(
 if __name__ == "__main__":
 
     async def test_mcp():
-        prompt = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
+
+        # prompt = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
+
+        prompt = "Map `Mean Arterial Pressure (Invasive)` for `measurement_concept_id` in the measurement` table"
 
         print("=" * 60)
         print("WITH MCP TOOLS:")
