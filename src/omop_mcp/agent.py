@@ -1,6 +1,7 @@
 import asyncio
 import os
 import re
+import time
 from typing import Literal
 
 from dotenv import load_dotenv
@@ -139,6 +140,23 @@ def clean_url_formatting(response: str) -> str:
     return re.sub(markdown_link_pattern, replace_markdown_link, response)
 
 
+def clean_no_mcp_response(response: str, actual_time: str) -> str:
+    """
+    Clean up the response from LLM-only mode by replacing the processing time
+    with the actual measured time for the LLM API call.
+    """
+    import re
+
+    # Replace any processing time with the actual measured time
+    response = re.sub(
+        r"PROCESSING_TIME_SEC:\s*[\d.]+",
+        f"PROCESSING_TIME_SEC: {actual_time}",
+        response,
+    )
+
+    return response
+
+
 async def run_agent(
     prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
 ):
@@ -172,11 +190,61 @@ async def run_agent(
     return response
 
 
+async def run_llm_no_mcp(
+    prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
+):
+    """
+    Calls the LLM API directly with the provided prompt,
+    using the same system message and few-shot example as the MCP agent.
+    This serves as a control experiment to compare performance without MCP tools.
+    """
+    load_dotenv()
+
+    if llm_provider == "azure_openai":
+        llm = AzureChatOpenAI(
+            azure_deployment=os.getenv("MODEL_NAME"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
+            api_version=os.getenv("AZURE_API_VERSION_WEST"),
+        )
+    elif llm_provider == "openai":
+        llm = ChatOpenAI(model="gpt-4o")
+    else:
+        raise ValueError(
+            f"Unsupported llm_provider: {llm_provider}. "
+            "Valid options are 'azure_openai' or 'openai'."
+        )
+
+    messages = [
+        SystemMessage(content=MCP_DOC_INSTRUCTION),
+        HumanMessage(content=EXAMPLE_INPUT),
+        AIMessage(content=EXAMPLE_OUTPUT),
+        HumanMessage(content=prompt),
+    ]
+
+    start = time.perf_counter()
+    response = await llm.ainvoke(messages)
+    elapsed = time.perf_counter() - start
+
+    cleaned_response = clean_no_mcp_response(response.content, f"{elapsed:.3f}")
+    return cleaned_response
+
+
 if __name__ == "__main__":
 
     async def test_mcp():
         prompt = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
-        result = await run_agent(prompt)
-        print(result)
+
+        print("=" * 60)
+        print("WITH MCP TOOLS:")
+        print("=" * 60)
+        mcp_result = await run_agent(prompt)
+        print(mcp_result)
+
+        print("\n" + "=" * 60)
+        print("WITHOUT MCP TOOLS (LLM only):")
+        print("=" * 60)
+        no_mcp_result = await run_llm_no_mcp(prompt)
+        print(no_mcp_result)
 
     asyncio.run(test_mcp())
