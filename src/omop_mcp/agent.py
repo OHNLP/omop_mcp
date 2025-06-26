@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Literal
 
@@ -15,7 +16,7 @@ def get_agent(
     llm_provider: Literal["azure_openai", "openai"] = "azure_openai",
 ) -> MCPAgent:
     """
-    Create an MCPAgent using the specified LLM provider.
+    Create an MCPAgent using the specified LLM provider and register the find_omop_concept tool.
     """
     config_dir = os.path.dirname(__file__)
     config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
@@ -52,3 +53,13 @@ async def run_agent(
         AIMessage(content=EXAMPLE_OUTPUT),
     ]
     return await agent.run(query=prompt, external_history=history)
+
+
+if __name__ == "__main__":
+
+    async def test_mcp():
+        prompt = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
+        result = await run_agent(prompt)
+        print(result)
+
+    asyncio.run(test_mcp())
