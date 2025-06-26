@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from typing import Literal
 
 from dotenv import load_dotenv
@@ -40,6 +41,86 @@ def get_agent(
     return MCPAgent(llm=llm, client=client, max_steps=30)
 
 
+def ensure_processing_time_in_output(response: str, processing_time: str) -> str:
+    """
+    Ensure the processing time is included in the response in the correct location.
+    Remove duplicates and ensure only one properly formatted processing time entry.
+    """
+    lines = response.split("\n")
+
+    # Remove any processing time mentions (both structured and explanatory)
+    cleaned_lines = []
+    url_index = -1
+
+    for i, line in enumerate(lines):
+        line_lower = line.lower()
+        # Skip lines that mention processing time in any format
+        if (
+            "processing time" in line_lower
+            or "**processing_time_sec**" in line
+            or "processing_time_sec:" in line
+            or (
+                "processing" in line_lower
+                and ("seconds" in line_lower or "sec" in line_lower)
+            )
+        ):
+            continue
+
+        # Track URL position for insertion
+        if "**url**" in line.lower() or "athena.ohdsi.org" in line:
+            url_index = len(cleaned_lines)  # Position after this line
+
+        cleaned_lines.append(line)
+
+    # Add the processing time in the correct location (after URL)
+    if url_index >= 0:
+        cleaned_lines.insert(
+            url_index + 1, f"- **PROCESSING_TIME_SEC**: {processing_time}"
+        )
+    else:
+        # Fallback: add before any explanatory text
+        insert_index = len(cleaned_lines)
+        for i, line in enumerate(cleaned_lines):
+            if line.strip().startswith("This concept") or line.strip().startswith(
+                "The "
+            ):
+                insert_index = i
+                break
+        cleaned_lines.insert(
+            insert_index, f"- **PROCESSING_TIME_SEC**: {processing_time}"
+        )
+
+    return "\n".join(cleaned_lines)
+
+
+def get_real_processing_time() -> str:
+    """Get the real processing time from the server module."""
+    try:
+        from omop_mcp import server
+
+        if hasattr(server, "_last_processing_time") and server._last_processing_time:
+            return server._last_processing_time
+    except:
+        pass
+    return "0.000"
+
+
+def extract_processing_time_from_response(response: str) -> str:
+    """Extract processing time from the LLM response as a fallback."""
+    patterns = [
+        r"approximately (\d+\.?\d*) seconds?",
+        r"(\d+\.?\d*) seconds?",
+        r"took (\d+\.?\d*)",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, response)
+        if match:
+            return match.group(1)
+
+    return "0.000"
+
+
 async def run_agent(
     prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
 ):
@@ -52,7 +133,24 @@ async def run_agent(
         HumanMessage(content=EXAMPLE_INPUT),
         AIMessage(content=EXAMPLE_OUTPUT),
     ]
-    return await agent.run(query=prompt, external_history=history)
+
+    # Get the response from the agent
+    response = await agent.run(query=prompt, external_history=history)
+
+    # Get the real processing time
+    processing_time = get_real_processing_time()
+
+    # Fallback: extract from response if global variable doesn't work
+    if processing_time == "0.000" and isinstance(response, str):
+        extracted_time = extract_processing_time_from_response(response)
+        if extracted_time != "0.000":
+            processing_time = extracted_time
+
+    # Ensure processing time is in the response
+    if isinstance(response, str):
+        response = ensure_processing_time_in_output(response, processing_time)
+
+    return response
 
 
 if __name__ == "__main__":

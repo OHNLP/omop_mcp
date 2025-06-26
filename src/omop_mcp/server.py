@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List
@@ -18,6 +19,9 @@ DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
 with open(DATA_FILE, "r") as f:
     OMOP_CDM = json.load(f)
 
+# Global variable to store the last processing time
+_last_processing_time = None
+
 # Initialize server
 mcp = FastMCP(name="omop_concept_mapper")
 
@@ -26,6 +30,13 @@ mcp = FastMCP(name="omop_concept_mapper")
 async def list_omop_tables() -> Dict[str, List[str]]:
     """List all OMOP CDM tables and their concept ID fields."""
     return OMOP_CDM
+
+
+@mcp.tool()
+async def get_last_processing_time() -> Dict[str, Any]:
+    """Get the processing time from the last find_omop_concept call."""
+    global _last_processing_time
+    return {"last_processing_time_sec": _last_processing_time}
 
 
 @mcp.prompt()
@@ -76,6 +87,11 @@ async def find_omop_concept(
         Dict containing the best matching concept or error information.
         Processing time is only returned on success.
     """
+    global _last_processing_time
+
+    logging.info(
+        f"find_omop_concept called with keyword='{keyword}', omop_table='{omop_table}', omop_field='{omop_field}'"
+    )
 
     start = time.perf_counter()
 
@@ -132,6 +148,12 @@ async def find_omop_concept(
 
         best = prioritized[0]
         elapsed = time.perf_counter() - start
+
+        # Store the processing time globally
+        _last_processing_time = f"{elapsed:.3f}"
+
+        logging.info(f"elapsed: {elapsed}")
+
         return {
             "concept_id": best.get("id", ""),
             "code": best.get("code", ""),
