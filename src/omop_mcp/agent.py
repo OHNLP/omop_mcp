@@ -121,6 +121,24 @@ def extract_processing_time_from_response(response: str) -> str:
     return "0.000"
 
 
+def clean_url_formatting(response: str) -> str:
+    """
+    Remove markdown formatting from URLs in the response.
+    Converts [text](url) format to just the plain URL.
+    """
+    import re
+
+    # Pattern to match markdown links
+    markdown_link_pattern = r"\[([^\]]+)\]\((https://athena\.ohdsi\.org/[^)]+)\)"
+
+    def replace_markdown_link(match):
+        text = match.group(1)
+        url = match.group(2)
+        return url
+
+    return re.sub(markdown_link_pattern, replace_markdown_link, response)
+
+
 async def run_agent(
     prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
 ):
@@ -146,9 +164,10 @@ async def run_agent(
         if extracted_time != "0.000":
             processing_time = extracted_time
 
-    # Ensure processing time is in the response
+    # Ensure processing time is in the response and clean URL formatting
     if isinstance(response, str):
         response = ensure_processing_time_in_output(response, processing_time)
+        response = clean_url_formatting(response)
 
     return response
 
