@@ -48,12 +48,14 @@ def ensure_processing_time_in_output(response: str, processing_time: str) -> str
     """
     Ensure the processing time is included in the response in the correct location.
     Remove duplicates and ensure only one properly formatted processing time entry.
+    Also extract explanatory text and format it as a REASON field.
     """
     lines = response.split("\n")
 
     # Remove any processing time mentions (both structured and explanatory)
     cleaned_lines = []
     url_index = -1
+    explanatory_text = []
 
     for i, line in enumerate(lines):
         line_lower = line.lower()
@@ -73,6 +75,27 @@ def ensure_processing_time_in_output(response: str, processing_time: str) -> str
         if "**url**" in line.lower() or "athena.ohdsi.org" in line:
             url_index = len(cleaned_lines)  # Position after this line
 
+        # Capture explanatory text (lines that don't start with bullet points or are empty)
+        if (
+            line.strip()
+            and not line.strip().startswith("- **")
+            and not line.strip().startswith("**")
+        ):
+            # Check if it's explanatory text (contains key phrases)
+            if any(
+                phrase in line_lower
+                for phrase in [
+                    "this concept",
+                    "this snomed",
+                    "the concept",
+                    "selected",
+                    "represents",
+                    "note",
+                ]
+            ):
+                explanatory_text.append(line.strip())
+                continue
+
         cleaned_lines.append(line)
 
     # Add the processing time in the correct location (after URL) only if we have a valid time
@@ -84,12 +107,6 @@ def ensure_processing_time_in_output(response: str, processing_time: str) -> str
         else:
             # Fallback: add before any explanatory text
             insert_index = len(cleaned_lines)
-            for i, line in enumerate(cleaned_lines):
-                if line.strip().startswith("This concept") or line.strip().startswith(
-                    "The "
-                ):
-                    insert_index = i
-                    break
             cleaned_lines.insert(
                 insert_index, f"- **PROCESSING_TIME_SEC**: {processing_time}"
             )
@@ -98,15 +115,14 @@ def ensure_processing_time_in_output(response: str, processing_time: str) -> str
         if url_index >= 0:
             cleaned_lines.insert(url_index + 1, "- **PROCESSING_TIME_SEC**: None")
         else:
-            # Fallback: add before any explanatory text
+            # Fallback: add at the end of structured fields
             insert_index = len(cleaned_lines)
-            for i, line in enumerate(cleaned_lines):
-                if line.strip().startswith("This concept") or line.strip().startswith(
-                    "The "
-                ):
-                    insert_index = i
-                    break
             cleaned_lines.insert(insert_index, "- **PROCESSING_TIME_SEC**: None")
+
+    # Add explanatory text as REASON field
+    if explanatory_text:
+        reason_text = " ".join(explanatory_text)
+        cleaned_lines.append(f"- **REASON**: {reason_text}")
 
     return "\n".join(cleaned_lines)
 
