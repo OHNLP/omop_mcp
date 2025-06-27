@@ -191,7 +191,7 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
         for row in reader:
-            keyword = row.get("keywords", "")
+            keyword = row.get("keyword", "")
             omop_field = row.get("omop_field", "")
             omop_table = row.get("omop_table", "")
             result = await find_omop_concept(keyword, omop_table, omop_field)
