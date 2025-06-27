@@ -30,9 +30,11 @@ def get_agent(
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
             api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
             api_version=os.getenv("AZURE_API_VERSION_WEST"),
+            temperature=0,
+            seed=42,
         )
     elif llm_provider == "openai":
-        llm = ChatOpenAI(model="gpt-4o")
+        llm = ChatOpenAI(model="gpt-4o", temperature=0)
     else:
         raise ValueError(
             f"Unsupported llm_provider: {llm_provider}. "
@@ -219,9 +221,11 @@ async def run_llm_no_mcp(
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
             api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
             api_version=os.getenv("AZURE_API_VERSION_WEST"),
+            temperature=0,
+            seed=42,
         )
     elif llm_provider == "openai":
-        llm = ChatOpenAI(model="gpt-4o")
+        llm = ChatOpenAI(model="gpt-4o", temperature=0, seed=42)
     else:
         raise ValueError(
             f"Unsupported llm_provider: {llm_provider}. "
