@@ -30,3 +30,12 @@ def concept_exists_in_athena(concept_id: str) -> bool:
         if str(concept.get("id")) == str(concept_id):
             return True
     return False
+
+
+def get_concept_name_from_athena(concept_id: str) -> str | None:
+    """Get the matching concept name from concept ID."""
+    results = search_athena_concept(concept_id)
+    for concept in results:
+        if str(concept.get("id")) == str(concept_id):
+            return concept.get("name")
+    return None
