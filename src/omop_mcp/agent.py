@@ -44,89 +44,6 @@ def get_agent(
     return MCPAgent(llm=llm, client=client, max_steps=30)
 
 
-def ensure_processing_time_in_output(response: str, processing_time: str) -> str:
-    """
-    Ensure the processing time is included in the response in the correct location.
-    Remove duplicates and ensure only one properly formatted processing time entry.
-    Also extract explanatory text and format it as a REASON field.
-    """
-    lines = response.split("\n")
-
-    # Remove any processing time mentions (both structured and explanatory)
-    cleaned_lines = []
-    url_index = -1
-    explanatory_text = []
-
-    for i, line in enumerate(lines):
-        line_lower = line.lower()
-        # Skip lines that mention processing time in any format
-        if (
-            "processing time" in line_lower
-            or "**processing_time_sec**" in line
-            or "processing_time_sec:" in line
-            or (
-                "processing" in line_lower
-                and ("seconds" in line_lower or "sec" in line_lower)
-            )
-        ):
-            continue
-
-        # Track URL position for insertion
-        if "**url**" in line.lower() or "athena.ohdsi.org" in line:
-            url_index = len(cleaned_lines)  # Position after this line
-
-        # Capture explanatory text (lines that don't start with bullet points or are empty)
-        if (
-            line.strip()
-            and not line.strip().startswith("- **")
-            and not line.strip().startswith("**")
-        ):
-            # Check if it's explanatory text (contains key phrases)
-            if any(
-                phrase in line_lower
-                for phrase in [
-                    "this concept",
-                    "this snomed",
-                    "the concept",
-                    "selected",
-                    "represents",
-                    "note",
-                ]
-            ):
-                explanatory_text.append(line.strip())
-                continue
-
-        cleaned_lines.append(line)
-
-    # Add the processing time in the correct location (after URL) only if we have a valid time
-    if processing_time is not None:
-        if url_index >= 0:
-            cleaned_lines.insert(
-                url_index + 1, f"- **PROCESSING_TIME_SEC**: {processing_time}"
-            )
-        else:
-            # Fallback: add before any explanatory text
-            insert_index = len(cleaned_lines)
-            cleaned_lines.insert(
-                insert_index, f"- **PROCESSING_TIME_SEC**: {processing_time}"
-            )
-    else:
-        # If processing time is None, add a note indicating it couldn't be captured
-        if url_index >= 0:
-            cleaned_lines.insert(url_index + 1, "- **PROCESSING_TIME_SEC**: None")
-        else:
-            # Fallback: add at the end of structured fields
-            insert_index = len(cleaned_lines)
-            cleaned_lines.insert(insert_index, "- **PROCESSING_TIME_SEC**: None")
-
-    # Add explanatory text as REASON field
-    if explanatory_text:
-        reason_text = " ".join(explanatory_text)
-        cleaned_lines.append(f"- **REASON**: {reason_text}")
-
-    return "\n".join(cleaned_lines)
-
-
 def get_real_processing_time() -> str:
     """Get the real processing time from the server module."""
     try:
@@ -172,23 +89,6 @@ def clean_url_formatting(response: str) -> str:
     return re.sub(markdown_link_pattern, replace_markdown_link, response)
 
 
-def clean_no_mcp_response(response: str, actual_time: str) -> str:
-    """
-    Clean up the response from LLM-only mode by replacing the processing time
-    with the actual measured time for the LLM API call.
-    """
-    import re
-
-    # Replace any processing time with the actual measured time
-    response = re.sub(
-        r"PROCESSING_TIME_SEC:\s*[\d.]+",
-        f"PROCESSING_TIME_SEC: {actual_time}",
-        response,
-    )
-
-    return response
-
-
 async def run_agent(
     prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
 ):
@@ -203,23 +103,14 @@ async def run_agent(
     ]
 
     # Get the response from the agent
+    start = time.perf_counter()
     response = await agent.run(query=prompt, external_history=history)
+    elapsed = time.perf_counter() - start
 
-    # Get the real processing time
-    processing_time = get_real_processing_time()
-
-    # Fallback: extract from response if global variable doesn't work
-    if processing_time is None and isinstance(response, str):
-        extracted_time = extract_processing_time_from_response(response)
-        if extracted_time != "0.000":
-            processing_time = extracted_time
-
-    # Ensure processing time is in the response and clean URL formatting
     if isinstance(response, str):
-        response = ensure_processing_time_in_output(response, processing_time)
         response = clean_url_formatting(response)
 
-    return response
+    return {"response": response, "elapsed": elapsed}
 
 
 async def run_llm_no_mcp(
@@ -259,8 +150,7 @@ async def run_llm_no_mcp(
     response = await llm.ainvoke(messages)
     elapsed = time.perf_counter() - start
 
-    cleaned_response = clean_no_mcp_response(response.content, f"{elapsed:.3f}")
-    return cleaned_response
+    return {"response": response.content, "elapsed": elapsed}
 
 
 if __name__ == "__main__":
@@ -277,10 +167,10 @@ if __name__ == "__main__":
         mcp_result = await run_agent(prompt)
         print(mcp_result)
 
-        print("\n" + "=" * 60)
-        print("WITHOUT MCP TOOLS (LLM only):")
-        print("=" * 60)
-        no_mcp_result = await run_llm_no_mcp(prompt)
-        print(no_mcp_result)
+        # print("\n" + "=" * 60)
+        # print("WITHOUT MCP TOOLS (LLM only):")
+        # print("=" * 60)
+        # no_mcp_result = await run_llm_no_mcp(prompt)
+        # print(no_mcp_result)
 
     asyncio.run(test_mcp())
