@@ -148,6 +148,7 @@ async def find_omop_concept(
             "domain": best.get("domain", best.get("domainId", "")),
             "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
             "url": f"https://athena.ohdsi.org/search-terms/terms/{best.get('id', '')}",
+            "reason": best.get("reason", ""),
         }
 
 
@@ -169,6 +170,7 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             "domain",
             "vocab",
             "url",
+            "reason",
         ]
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
