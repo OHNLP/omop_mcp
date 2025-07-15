@@ -1,6 +1,5 @@
 import asyncio
 import os
-import re
 import time
 from typing import Literal
 
@@ -9,11 +8,12 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from mcp_use import MCPAgent, MCPClient
 
+from omop_mcp import utils
 from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
 
 load_dotenv()
 
-MAX_STEPS = 5
+MAX_STEPS = 5  # maximum number of steps for the agent
 
 
 def get_agent(
@@ -46,23 +46,6 @@ def get_agent(
     return MCPAgent(llm=llm, client=client, max_steps=MAX_STEPS)
 
 
-def clean_url_formatting(response: str) -> str:
-    """
-    Remove markdown formatting from URLs in the response.
-    Converts [text](url) format to just the plain URL.
-    """
-    import re
-
-    # Pattern to match markdown links
-    markdown_link_pattern = r"\[([^\]]+)\]\((https://athena\.ohdsi\.org/[^)]+)\)"
-
-    def replace_markdown_link(match):
-        url = match.group(2)
-        return url
-
-    return re.sub(markdown_link_pattern, replace_markdown_link, response)
-
-
 async def run_agent(
     prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
 ):
@@ -82,7 +65,7 @@ async def run_agent(
     elapsed = time.perf_counter() - start
 
     if isinstance(response, str):
-        response = clean_url_formatting(response)
+        response = utils.clean_url_formatting(response)
 
     return {"response": response, "processing_time_sec": elapsed}
 

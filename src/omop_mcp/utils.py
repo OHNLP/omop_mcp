@@ -98,3 +98,20 @@ def parse_agent_response(response):
         "url": url,
         "reason": reason,
     }
+
+
+def clean_url_formatting(response: str) -> str:
+    """
+    Remove markdown formatting from URLs in the response.
+    Converts [text](url) format to just the plain URL.
+    """
+    import re
+
+    # Pattern to match markdown links
+    markdown_link_pattern = r"\[([^\]]+)\]\((https://athena\.ohdsi\.org/[^)]+)\)"
+
+    def replace_markdown_link(match):
+        url = match.group(2)
+        return url
+
+    return re.sub(markdown_link_pattern, replace_markdown_link, response)
