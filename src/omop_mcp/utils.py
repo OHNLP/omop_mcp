@@ -1,3 +1,5 @@
+import re
+
 import requests
 
 
@@ -23,7 +25,7 @@ def search_athena_concept(keyword: str):
     return concepts
 
 
-def concept_exists_in_athena(concept_id: str) -> bool:
+def concept_id_exists_in_athena(concept_id: str) -> bool:
     """Check if a concept exists in Athena."""
     results = search_athena_concept(concept_id)
     for concept in results:
@@ -39,3 +41,60 @@ def get_concept_name_from_athena(concept_id: str) -> str | None:
         if str(concept.get("id")) == str(concept_id):
             return concept.get("name")
     return None
+
+
+def parse_agent_response(response):
+    """
+    Parse the agent response to extract structured information
+    """
+    # Extract concept ID
+    id_match = re.search(r"\*\*CONCEPT_ID\*\*:\s*(\d+)", response)
+    concept_id = id_match.group(1) if id_match else ""
+
+    # Extract code
+    code_match = re.search(r"\*\*CODE\*\*:\s*(.+?)(?:\n|$)", response)
+    code = code_match.group(1).strip() if code_match else ""
+
+    # Extract name
+    name_match = re.search(r"\*\*NAME\*\*:\s*(.+?)(?:\n|$)", response)
+    name = name_match.group(1).strip() if name_match else ""
+
+    # Extract class
+    class_match = re.search(r"\*\*CLASS\*\*:\s*(.+?)(?:\n|$)", response)
+    class_val = class_match.group(1).strip() if class_match else ""
+
+    # Extract concept
+    concept_match = re.search(r"\*\*CONCEPT\*\*:\s*(.+?)(?:\n|$)", response)
+    concept = concept_match.group(1).strip() if concept_match else ""
+
+    # Extract validity
+    validity_match = re.search(r"\*\*VALIDITY\*\*:\s*(.+?)(?:\n|$)", response)
+    validity = validity_match.group(1).strip() if validity_match else ""
+
+    # Extract domain
+    domain_match = re.search(r"\*\*DOMAIN\*\*:\s*(.+?)(?:\n|$)", response)
+    domain = domain_match.group(1).strip() if domain_match else ""
+
+    # Extract vocabulary
+    vocab_match = re.search(r"\*\*VOCAB\*\*:\s*(.+?)(?:\n|$)", response)
+    vocab = vocab_match.group(1).strip() if vocab_match else ""
+
+    # Extract URL
+    url_match = re.search(r"\*\*URL\*\*:\s*(.+?)(?:\n|$)", response)
+    url = url_match.group(1).strip() if url_match else ""
+
+    reason_match = re.search(r"\*\*REASON\*\*:\s*(.+?)(?:\n|$)", response)
+    reason = reason_match.group(1).strip() if reason_match else ""
+
+    return {
+        "concept_id": concept_id,
+        "code": code,
+        "name": name,
+        "class": class_val,
+        "concept": concept,
+        "validity": validity,
+        "domain": domain,
+        "vocab": vocab,
+        "url": url,
+        "reason": reason,
+    }
