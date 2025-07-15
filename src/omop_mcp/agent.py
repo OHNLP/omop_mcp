@@ -13,6 +13,8 @@ from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
 
 load_dotenv()
 
+MAX_STEPS = 5
+
 
 def get_agent(
     llm_provider: Literal["azure_openai", "openai"] = "azure_openai",
@@ -41,7 +43,7 @@ def get_agent(
             "Valid options are 'azure_openai' or 'openai'."
         )
 
-    return MCPAgent(llm=llm, client=client, max_steps=30)
+    return MCPAgent(llm=llm, client=client, max_steps=MAX_STEPS)
 
 
 def clean_url_formatting(response: str) -> str:
