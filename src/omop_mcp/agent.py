@@ -44,34 +44,6 @@ def get_agent(
     return MCPAgent(llm=llm, client=client, max_steps=30)
 
 
-def get_real_processing_time() -> str:
-    """Get the real processing time from the server module."""
-    try:
-        from omop_mcp import server
-
-        if hasattr(server, "_last_processing_time") and server._last_processing_time:
-            return server._last_processing_time
-    except:
-        pass
-    return None
-
-
-def extract_processing_time_from_response(response: str) -> str:
-    """Extract processing time from the LLM response as a fallback."""
-    patterns = [
-        r"approximately (\d+\.?\d*) seconds?",
-        r"(\d+\.?\d*) seconds?",
-        r"took (\d+\.?\d*)",
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, response)
-        if match:
-            return match.group(1)
-
-    return "0.000"
-
-
 def clean_url_formatting(response: str) -> str:
     """
     Remove markdown formatting from URLs in the response.
@@ -110,7 +82,7 @@ async def run_agent(
     if isinstance(response, str):
         response = clean_url_formatting(response)
 
-    return {"response": response, "elapsed": elapsed}
+    return {"response": response, "processing_time_sec": elapsed}
 
 
 async def run_llm_no_mcp(
@@ -150,7 +122,7 @@ async def run_llm_no_mcp(
     response = await llm.ainvoke(messages)
     elapsed = time.perf_counter() - start
 
-    return {"response": response.content, "elapsed": elapsed}
+    return {"response": response.content, "processing_time_sec": elapsed}
 
 
 if __name__ == "__main__":
@@ -167,10 +139,10 @@ if __name__ == "__main__":
         mcp_result = await run_agent(prompt)
         print(mcp_result)
 
-        # print("\n" + "=" * 60)
-        # print("WITHOUT MCP TOOLS (LLM only):")
-        # print("=" * 60)
-        # no_mcp_result = await run_llm_no_mcp(prompt)
-        # print(no_mcp_result)
+        print("\n" + "=" * 60)
+        print("WITHOUT MCP TOOLS (LLM only):")
+        print("=" * 60)
+        no_mcp_result = await run_llm_no_mcp(prompt)
+        print(no_mcp_result)
 
     asyncio.run(test_mcp())
