@@ -124,14 +124,59 @@ async def find_omop_concept(
                 c.get("standardConcept", "").lower() == "standard"
                 or c.get("standardConcept", "").upper() == "S"
             )
-            is_valid = c.get("validity", c.get("invalidReason", "")).lower() == "valid"
+            is_valid = c.get("invalidReason", c.get("validity", "")).lower() == "valid"
             if is_standard and is_valid:
                 prioritized.append(c)
+
+        # DEBUG: Print Standard+Valid concepts
+        logging.info(f"Standard+Valid concepts found: {len(prioritized)}")
+        for i, c in enumerate(prioritized):
+            logging.info(f"  {i+1}. ID:{c.get('id')} Name:{c.get('name')} Domain:{c.get('domain', c.get('domainId', ''))} Vocab:{c.get('vocabulary', c.get('vocabularyId', ''))} Class:{c.get('classId', c.get('className', ''))}")
 
         if not prioritized:
             return {
                 "error": "No 'Standard' and 'Valid' concept found for the given keyword.",
             }
+
+        # Add domain filtering based on OMOP table
+        domain_mapping = {
+            "drug_exposure": "Drug",
+            "condition_occurrence": "Condition",
+            "measurement": "Measurement", 
+            "procedure_occurrence": "Procedure",
+            "observation": "Observation",
+            "device_exposure": "Device"
+        }
+
+        expected_domain = domain_mapping.get(omop_table)
+        if expected_domain:
+            domain_filtered = [c for c in prioritized if c.get("domain", c.get("domainId", "")) == expected_domain]
+            logging.info(f"Domain filtering for '{expected_domain}': {len(domain_filtered)} concepts")
+            if domain_filtered:
+                prioritized = domain_filtered
+                for i, c in enumerate(prioritized):
+                    logging.info(f"  After domain: {i+1}. ID:{c.get('id')} Name:{c.get('name')} Domain:{c.get('domain', c.get('domainId', ''))} Vocab:{c.get('vocabulary', c.get('vocabularyId', ''))}")
+
+        # Add vocabulary prioritization based on OMOP table/domain
+        vocab_priority = {
+            "drug_exposure": ["RxNorm", "RxNorm Extension", "SNOMED"],
+            "condition_occurrence": ["SNOMED", "ICD10CM", "ICD9CM"],
+            "measurement": ["LOINC", "SNOMED"],
+            "procedure_occurrence": ["SNOMED", "CPT4", "ICD10PCS"],
+            "observation": ["SNOMED"],
+            "device_exposure": ["SNOMED"]
+        }
+
+        preferred_vocabs = vocab_priority.get(omop_table, [])
+        logging.info(f"Vocabulary priority for {omop_table}: {preferred_vocabs}")
+        if preferred_vocabs:
+            for vocab in preferred_vocabs:
+                vocab_filtered = [c for c in prioritized if c.get("vocabulary", c.get("vocabularyId", "")) == vocab]
+                logging.info(f"  Checking vocab '{vocab}': found {len(vocab_filtered)} concepts")
+                if vocab_filtered:
+                    prioritized = vocab_filtered
+                    logging.info(f"  Selected vocab '{vocab}' with {len(prioritized)} concepts")
+                    break
 
         best = prioritized[0]
         elapsed = time.perf_counter() - start
@@ -144,7 +189,7 @@ async def find_omop_concept(
             "name": best.get("name", ""),
             "class": best.get("classId", best.get("className", "")),
             "concept": best.get("standardConcept", ""),
-            "validity": best.get("validity", best.get("invalidReason", "")),
+            "validity": best.get("invalidReason", best.get("validity", "")),
             "domain": best.get("domain", best.get("domainId", "")),
             "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
             "url": f"https://athena.ohdsi.org/search-terms/terms/{best.get('id', '')}",
