@@ -80,8 +80,6 @@ async def find_omop_concept(
         f"find_omop_concept called with keyword='{keyword}', omop_table='{omop_table}', omop_field='{omop_field}'"
     )
 
-    start = time.perf_counter()
-
     # Create a new session for each request
     async with aiohttp.ClientSession() as session:
         url = "https://athena.ohdsi.org/api/v1/concepts"
@@ -177,9 +175,6 @@ async def find_omop_concept(
 
         logging.info(f"prioritized: {prioritized}")
         best = prioritized[0]
-        elapsed = time.perf_counter() - start
-
-        # logging.info(f"elapsed: {elapsed}")
 
         return {
             "concept_id": best.get("id", ""),
