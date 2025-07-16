@@ -47,44 +47,43 @@ def parse_agent_response(response):
     """
     Parse the agent response to extract structured information
     """
-    # Extract concept ID
-    id_match = re.search(r"\*\*CONCEPT_ID\*\*:\s*(\d+)", response)
-    concept_id = id_match.group(1) if id_match else ""
+    # Extract concept ID with optional bullet point
+    id_match = re.search(r"[-*]?\s*\*\*Concept ID\*\*:\s*(.+?)(?:\n|$)", response)
+    concept_id = id_match.group(1).strip() if id_match else ""
 
-    # Extract code
-    code_match = re.search(r"\*\*CODE\*\*:\s*(.+?)(?:\n|$)", response)
+    # Extract code with optional bullet point
+    code_match = re.search(r"[-*]?\s*\*\*Code\*\*:\s*(.+?)(?:\n|$)", response)
     code = code_match.group(1).strip() if code_match else ""
 
-    # Extract name
-    name_match = re.search(r"\*\*NAME\*\*:\s*(.+?)(?:\n|$)", response)
+    # Extract name with optional bullet point
+    name_match = re.search(r"[-*]?\s*\*\*Name\*\*:\s*(.+?)(?:\n|$)", response)
     name = name_match.group(1).strip() if name_match else ""
 
-    # Extract class
-    class_match = re.search(r"\*\*CLASS\*\*:\s*(.+?)(?:\n|$)", response)
+    # Extract class with optional bullet point
+    class_match = re.search(r"[-*]?\s*\*\*Class\*\*:\s*(.+?)(?:\n|$)", response)
     class_val = class_match.group(1).strip() if class_match else ""
 
-    # Extract concept
-    concept_match = re.search(r"\*\*CONCEPT\*\*:\s*(.+?)(?:\n|$)", response)
+    # Extract concept with optional bullet point
+    concept_match = re.search(r"[-*]?\s*\*\*Concept\*\*:\s*(.+?)(?:\n|$)", response)
     concept = concept_match.group(1).strip() if concept_match else ""
 
-    # Extract validity
-    validity_match = re.search(r"\*\*VALIDITY\*\*:\s*(.+?)(?:\n|$)", response)
+    # Extract validity with optional bullet point
+    validity_match = re.search(r"[-*]?\s*\*\*Validity\*\*:\s*(.+?)(?:\n|$)", response)
     validity = validity_match.group(1).strip() if validity_match else ""
 
-    # Extract domain
-    domain_match = re.search(r"\*\*DOMAIN\*\*:\s*(.+?)(?:\n|$)", response)
+    # Extract domain with optional bullet point
+    domain_match = re.search(r"[-*]?\s*\*\*Domain\*\*:\s*(.+?)(?:\n|$)", response)
     domain = domain_match.group(1).strip() if domain_match else ""
 
-    # Extract vocabulary
-    vocab_match = re.search(r"\*\*VOCAB\*\*:\s*(.+?)(?:\n|$)", response)
+    # Extract vocabulary with optional bullet point
+    vocab_match = re.search(r"[-*]?\s*\*\*Vocabulary\*\*:\s*(.+?)(?:\n|$)", response)
     vocab = vocab_match.group(1).strip() if vocab_match else ""
 
-    # Extract URL
-    url_match = re.search(r"\*\*URL\*\*:\s*(.+?)(?:\n|$)", response)
-    url = url_match.group(1).strip() if url_match else ""
-
-    reason_match = re.search(r"\*\*REASON\*\*:\s*(.+?)(?:\n|$)", response)
-    reason = reason_match.group(1).strip() if reason_match else ""
+    # Extract URL (if present)
+    url_match = re.search(
+        r"https://athena\.ohdsi\.org/search-terms/terms/\d+", response
+    )
+    url = url_match.group(0) if url_match else ""
 
     return {
         "concept_id": concept_id,
@@ -96,7 +95,6 @@ def parse_agent_response(response):
         "domain": domain,
         "vocab": vocab,
         "url": url,
-        "reason": reason,
     }
 
 
