@@ -4,6 +4,11 @@ Use the mapping conventions, standard concept definitions, and vocabulary guidan
 
 **You must return ONLY the following fields, in this exact order, with no extra formatting, no markdown, no bullets, and no additional text. Do NOT use markdown, bullets, or add explanations outside the REASON field.**
 
+**After using any tool, you must always provide a REASON field. In the REASON, explain:**
+- **How you interpreted the keyword (including any synonym, abbreviation, or context expansion)**
+- **Why you selected the specific OMOP concept**
+- **Any special mapping considerations or caveats**
+
 Return mapping result using ALL fields in this exact format, with each field on a new line:
 CONCEPT_ID: ...
 CODE: ...
