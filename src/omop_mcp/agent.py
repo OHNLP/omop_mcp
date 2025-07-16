@@ -19,9 +19,6 @@ MAX_STEPS = 5  # maximum number of steps for the agent
 def get_agent(
     llm_provider: Literal["azure_openai", "openai"] = "azure_openai",
 ) -> MCPAgent:
-    """
-    Create an MCPAgent using the specified LLM provider and register the find_omop_concept tool.
-    """
     config_dir = os.path.dirname(__file__)
     config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
     client = MCPClient.from_config_file(config_path)
@@ -46,28 +43,101 @@ def get_agent(
     return MCPAgent(llm=llm, client=client, max_steps=MAX_STEPS)
 
 
-async def run_agent(
-    prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
-):
-    """
-    Run the MCP agent with the given prompt and LLM provider.
-    """
-    agent = get_agent(llm_provider=llm_provider)
-    history = [
-        SystemMessage(content=MCP_DOC_INSTRUCTION),
-        HumanMessage(content=EXAMPLE_INPUT),
-        AIMessage(content=EXAMPLE_OUTPUT),
-    ]
+async def run_agent(user_prompt: str, llm_provider: str = "azure_openai") -> dict:
+    start_time = time.time()
 
-    # Get the response from the agent
-    start = time.perf_counter()
-    response = await agent.run(query=prompt, external_history=history)
-    elapsed = time.perf_counter() - start
+    agent = get_agent(llm_provider)
 
-    if isinstance(response, str):
-        response = utils.clean_url_formatting(response)
+    # Step 1: Get LLM reasoning about keyword interpretation and extract components
+    reasoning_prompt = f"""
+You are an OMOP concept mapping expert. Analyze this request and extract the key components:
 
-    return {"response": response, "processing_time_sec": elapsed}
+User request: "{user_prompt}"
+
+Output format:
+KEYWORD: [the main clinical term/keyword to map]
+OMOP_TABLE: [the OMOP table mentioned or implied]
+OMOP_FIELD: [the OMOP field mentioned or implied] 
+ADJUSTED_KEYWORD: [the keyword you would actually search for]
+REASONING: [brief explanation of any keyword adjustments or interpretation]
+
+Keep the REASONING concise - just note if you made any changes to the keyword and why.
+"""
+
+    reasoning_result = await agent.run(reasoning_prompt)
+    reasoning_response = (
+        reasoning_result.content
+        if hasattr(reasoning_result, "content")
+        else str(reasoning_result)
+    )
+
+    # Parse the reasoning response
+    keyword = ""
+    omop_table = ""
+    omop_field = ""
+    adjusted_keyword = ""
+    reasoning = ""
+
+    for line in reasoning_response.split("\n"):
+        line = line.strip()
+        if line.startswith("KEYWORD:"):
+            keyword = line.replace("KEYWORD:", "").strip()
+        elif line.startswith("OMOP_TABLE:"):
+            omop_table = line.replace("OMOP_TABLE:", "").strip()
+        elif line.startswith("OMOP_FIELD:"):
+            omop_field = line.replace("OMOP_FIELD:", "").strip()
+        elif line.startswith("ADJUSTED_KEYWORD:"):
+            adjusted_keyword = line.replace("ADJUSTED_KEYWORD:", "").strip()
+        elif line.startswith("REASONING:"):
+            reasoning = line.replace("REASONING:", "").strip()
+
+    # If parsing failed, use fallbacks
+    if not keyword:
+        keyword = "unknown"
+    if not adjusted_keyword:
+        adjusted_keyword = keyword
+    if not reasoning:
+        reasoning = f"Used keyword '{adjusted_keyword}' as provided."
+
+    # Step 2: Use the extracted information in a tool call
+    final_prompt = f"""
+{MCP_DOC_INSTRUCTION}
+
+Original user request: {user_prompt}
+
+Based on your analysis, map `{adjusted_keyword}` for `{omop_field}` in the `{omop_table}` table.
+
+Your previous reasoning for this keyword was: {reasoning}
+
+{EXAMPLE_INPUT}
+
+{EXAMPLE_OUTPUT}
+
+Please provide your response in the exact format shown above, including the REASON field that incorporates your keyword interpretation reasoning.
+"""
+
+    # Let the agent handle the tool call
+    final_result = await agent.run(final_prompt)
+    final_response = (
+        final_result.content if hasattr(final_result, "content") else str(final_result)
+    )
+
+    processing_time = time.time() - start_time
+
+    return {
+        "response": final_response,
+        "processing_time_sec": processing_time,
+        "debug_info": {
+            "reasoning_step": reasoning_response,
+            "extracted": {
+                "keyword": keyword,
+                "omop_table": omop_table,
+                "omop_field": omop_field,
+                "adjusted_keyword": adjusted_keyword,
+            },
+            "original_reasoning": reasoning,
+        },
+    }
 
 
 async def run_llm_no_mcp(
