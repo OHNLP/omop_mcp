@@ -44,57 +44,93 @@ def get_concept_name_from_athena(concept_id: str) -> str | None:
 
 
 def parse_agent_response(response):
-    """
-    Parse the agent response to extract structured information
-    """
-    # Extract concept ID with optional bullet point
-    id_match = re.search(r"[-*]?\s*\*\*Concept ID\*\*:\s*(.+?)(?:\n|$)", response)
-    concept_id = id_match.group(1).strip() if id_match else ""
-
-    # Extract code with optional bullet point
-    code_match = re.search(r"[-*]?\s*\*\*Code\*\*:\s*(.+?)(?:\n|$)", response)
-    code = code_match.group(1).strip() if code_match else ""
-
-    # Extract name with optional bullet point
-    name_match = re.search(r"[-*]?\s*\*\*Name\*\*:\s*(.+?)(?:\n|$)", response)
-    name = name_match.group(1).strip() if name_match else ""
-
-    # Extract class with optional bullet point
-    class_match = re.search(r"[-*]?\s*\*\*Class\*\*:\s*(.+?)(?:\n|$)", response)
-    class_val = class_match.group(1).strip() if class_match else ""
-
-    # Extract concept with optional bullet point
-    concept_match = re.search(r"[-*]?\s*\*\*Concept\*\*:\s*(.+?)(?:\n|$)", response)
-    concept = concept_match.group(1).strip() if concept_match else ""
-
-    # Extract validity with optional bullet point
-    validity_match = re.search(r"[-*]?\s*\*\*Validity\*\*:\s*(.+?)(?:\n|$)", response)
-    validity = validity_match.group(1).strip() if validity_match else ""
-
-    # Extract domain with optional bullet point
-    domain_match = re.search(r"[-*]?\s*\*\*Domain\*\*:\s*(.+?)(?:\n|$)", response)
-    domain = domain_match.group(1).strip() if domain_match else ""
-
-    # Extract vocabulary with optional bullet point
-    vocab_match = re.search(r"[-*]?\s*\*\*Vocabulary\*\*:\s*(.+?)(?:\n|$)", response)
-    vocab = vocab_match.group(1).strip() if vocab_match else ""
-
-    # Extract URL (if present)
-    url_match = re.search(
-        r"https://athena\.ohdsi\.org/search-terms/terms/\d+", response
-    )
-    url = url_match.group(0) if url_match else ""
+    def extract(patterns):
+        for pat in patterns:
+            match = re.search(pat, response, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return ""
 
     return {
-        "concept_id": concept_id,
-        "code": code,
-        "name": name,
-        "class": class_val,
-        "concept": concept,
-        "validity": validity,
-        "domain": domain,
-        "vocab": vocab,
-        "url": url,
+        "concept_id": extract(
+            [
+                r"\*\*CONCEPT_ID\*\*:\s*([^\n]+)",
+                r"\*\*Concept ID\*\*:\s*([^\n]+)",
+                r"CONCEPT_ID:\s*([^\n]+)",
+                r"Concept ID:\s*([^\n]+)",
+            ]
+        ),
+        "code": extract(
+            [
+                r"\*\*CODE\*\*:\s*([^\n]+)",
+                r"\*\*Code\*\*:\s*([^\n]+)",
+                r"CODE:\s*([^\n]+)",
+                r"Code:\s*([^\n]+)",
+            ]
+        ),
+        "name": extract(
+            [
+                r"\*\*NAME\*\*:\s*([^\n]+)",
+                r"\*\*Name\*\*:\s*([^\n]+)",
+                r"NAME:\s*([^\n]+)",
+                r"Name:\s*([^\n]+)",
+            ]
+        ),
+        "class": extract(
+            [
+                r"\*\*CLASS\*\*:\s*([^\n]+)",
+                r"\*\*Class\*\*:\s*([^\n]+)",
+                r"CLASS:\s*([^\n]+)",
+                r"Class:\s*([^\n]+)",
+            ]
+        ),
+        "concept": extract(
+            [
+                r"\*\*CONCEPT\*\*:\s*([^\n]+)",
+                r"\*\*Concept\*\*:\s*([^\n]+)",
+                r"CONCEPT:\s*([^\n]+)",
+                r"Concept:\s*([^\n]+)",
+            ]
+        ),
+        "validity": extract(
+            [
+                r"\*\*VALIDITY\*\*:\s*([^\n]+)",
+                r"\*\*Validity\*\*:\s*([^\n]+)",
+                r"VALIDITY:\s*([^\n]+)",
+                r"Validity:\s*([^\n]+)",
+            ]
+        ),
+        "domain": extract(
+            [
+                r"\*\*DOMAIN\*\*:\s*([^\n]+)",
+                r"\*\*Domain\*\*:\s*([^\n]+)",
+                r"DOMAIN:\s*([^\n]+)",
+                r"Domain:\s*([^\n]+)",
+            ]
+        ),
+        "vocab": extract(
+            [
+                r"\*\*VOCAB\*\*:\s*([^\n]+)",
+                r"\*\*Vocabulary\*\*:\s*([^\n]+)",
+                r"VOCAB:\s*([^\n]+)",
+                r"Vocabulary:\s*([^\n]+)",
+            ]
+        ),
+        "url": extract(
+            [
+                r"\*\*URL\*\*:\s*([^\n]+)",
+                r"(https://athena\.ohdsi\.org[^\s\)]+)",
+                r"URL:\s*([^\n]+)",
+            ]
+        ),
+        "reason": extract(
+            [
+                r"\*\*REASON\*\*:\s*([^\n]+)",
+                r"\*\*Reason\*\*:\s*([^\n]+)",
+                r"REASON:\s*([^\n]+)",
+                r"Reason:\s*([^\n]+)",
+            ]
+        ),
     }
 
 
