@@ -175,9 +175,9 @@ async def run_llm_no_mcp(
 
     start = time.perf_counter()
     response = await llm.ainvoke(messages)
-    elapsed = time.perf_counter() - start
+    processing_time = time.perf_counter() - start
 
-    return {"response": response.content, "processing_time_sec": elapsed}
+    return {"response": response.content, "processing_time_sec": processing_time}
 
 
 if __name__ == "__main__":
