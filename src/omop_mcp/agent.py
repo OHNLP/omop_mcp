@@ -1,0 +1,203 @@
+import asyncio
+import os
+import time
+from typing import Literal
+
+from dotenv import load_dotenv
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_openai import AzureChatOpenAI, ChatOpenAI
+from mcp_use import MCPAgent, MCPClient
+
+from omop_mcp import utils
+from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
+
+load_dotenv()
+
+MAX_STEPS = 5  # maximum number of steps for the agent
+
+
+def get_agent(
+    llm_provider: Literal["azure_openai", "openai"] = "azure_openai",
+) -> MCPAgent:
+    config_dir = os.path.dirname(__file__)
+    config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
+    client = MCPClient.from_config_file(config_path)
+
+    if llm_provider == "azure_openai":
+        llm = AzureChatOpenAI(
+            azure_deployment=os.getenv("MODEL_NAME"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
+            api_version=os.getenv("AZURE_API_VERSION_WEST"),
+            temperature=0,
+            seed=42,
+        )
+    elif llm_provider == "openai":
+        llm = ChatOpenAI(model="gpt-4o", temperature=0)
+    else:
+        raise ValueError(
+            f"Unsupported llm_provider: {llm_provider}. "
+            "Valid options are 'azure_openai' or 'openai'."
+        )
+
+    return MCPAgent(llm=llm, client=client, max_steps=MAX_STEPS)
+
+
+async def run_agent(user_prompt: str, llm_provider: str = "azure_openai") -> dict:
+    start_time = time.time()
+
+    agent = get_agent(llm_provider)
+
+    # Step 1: Get LLM reasoning about keyword interpretation and extract components
+    reasoning_prompt = f"""
+You are an OMOP concept mapping expert. Analyze this request and extract the key components:
+
+User request: "{user_prompt}"
+
+Output format:
+KEYWORD: [the main clinical term/keyword to map]
+OMOP_TABLE: [the OMOP table mentioned or implied]
+OMOP_FIELD: [the OMOP field mentioned or implied] 
+ADJUSTED_KEYWORD: [the keyword you would actually search for]
+REASONING: [brief explanation of any keyword adjustments or interpretation]
+
+Keep the REASONING concise - just note if you made any changes to the keyword and why.
+"""
+
+    reasoning_result = await agent.run(reasoning_prompt)
+    reasoning_response = (
+        reasoning_result.content
+        if hasattr(reasoning_result, "content")
+        else str(reasoning_result)
+    )
+
+    # Parse the reasoning response
+    keyword = ""
+    omop_table = ""
+    omop_field = ""
+    adjusted_keyword = ""
+    reasoning = ""
+
+    for line in reasoning_response.split("\n"):
+        line = line.strip()
+        if line.startswith("KEYWORD:"):
+            keyword = line.replace("KEYWORD:", "").strip()
+        elif line.startswith("OMOP_TABLE:"):
+            omop_table = line.replace("OMOP_TABLE:", "").strip()
+        elif line.startswith("OMOP_FIELD:"):
+            omop_field = line.replace("OMOP_FIELD:", "").strip()
+        elif line.startswith("ADJUSTED_KEYWORD:"):
+            adjusted_keyword = line.replace("ADJUSTED_KEYWORD:", "").strip()
+        elif line.startswith("REASONING:"):
+            reasoning = line.replace("REASONING:", "").strip()
+
+    # If parsing failed, use fallbacks
+    if not keyword:
+        keyword = "unknown"
+    if not adjusted_keyword:
+        adjusted_keyword = keyword
+    if not reasoning:
+        reasoning = f"Used keyword '{adjusted_keyword}' as provided."
+
+    # Step 2: Use the extracted information in a tool call
+    final_prompt = f"""
+{MCP_DOC_INSTRUCTION}
+
+Original user request: {user_prompt}
+
+Based on your analysis, map `{adjusted_keyword}` for `{omop_field}` in the `{omop_table}` table.
+
+Your previous reasoning for this keyword was: {reasoning}
+
+{EXAMPLE_INPUT}
+
+{EXAMPLE_OUTPUT}
+
+Please provide your response in the exact format shown above, including the REASON field that incorporates your keyword interpretation reasoning.
+"""
+
+    # Let the agent handle the tool call
+    final_result = await agent.run(final_prompt)
+    final_response = (
+        final_result.content if hasattr(final_result, "content") else str(final_result)
+    )
+
+    processing_time = time.time() - start_time
+
+    return {
+        "response": final_response,
+        "processing_time_sec": processing_time,
+        "debug_info": {
+            "reasoning_step": reasoning_response,
+            "extracted": {
+                "keyword": keyword,
+                "omop_table": omop_table,
+                "omop_field": omop_field,
+                "adjusted_keyword": adjusted_keyword,
+            },
+            "original_reasoning": reasoning,
+        },
+    }
+
+
+async def run_llm_no_mcp(
+    prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
+):
+    """
+    Calls the LLM API directly with the provided prompt,
+    using the same system message and few-shot example as the MCP agent.
+    """
+    load_dotenv()
+
+    if llm_provider == "azure_openai":
+        llm = AzureChatOpenAI(
+            azure_deployment=os.getenv("MODEL_NAME"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
+            api_version=os.getenv("AZURE_API_VERSION_WEST"),
+            temperature=0,
+            seed=42,
+        )
+    elif llm_provider == "openai":
+        llm = ChatOpenAI(model="gpt-4o", temperature=0, seed=42)
+    else:
+        raise ValueError(
+            f"Unsupported llm_provider: {llm_provider}. "
+            "Valid options are 'azure_openai' or 'openai'."
+        )
+
+    messages = [
+        SystemMessage(content=MCP_DOC_INSTRUCTION),
+        HumanMessage(content=EXAMPLE_INPUT),
+        AIMessage(content=EXAMPLE_OUTPUT),
+        HumanMessage(content=prompt),
+    ]
+
+    start = time.perf_counter()
+    response = await llm.ainvoke(messages)
+    processing_time = time.perf_counter() - start
+
+    return {"response": response.content, "processing_time_sec": processing_time}
+
+
+if __name__ == "__main__":
+
+    async def test_mcp():
+
+        # prompt = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
+
+        prompt = "Map `Mean Arterial Pressure (Invasive)` for `measurement_concept_id` in the measurement` table"
+
+        print("=" * 60)
+        print("WITH MCP TOOLS:")
+        print("=" * 60)
+        mcp_result = await run_agent(prompt)
+        print(mcp_result)
+
+        print("\n" + "=" * 60)
+        print("WITHOUT MCP TOOLS (LLM only):")
+        print("=" * 60)
+        no_mcp_result = await run_llm_no_mcp(prompt)
+        print(no_mcp_result)
+
+    asyncio.run(test_mcp())

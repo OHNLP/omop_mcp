@@ -13,3 +13,16 @@ wheels/
 scratch/
 
 .DS_Store
+.env
+
+# data
+data/
+
+# config
+omop_mcp_config.json
+
+# vscode
+.vscode/
+
+# data
+*.csv

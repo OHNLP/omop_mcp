@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List
@@ -9,6 +10,8 @@ import aiohttp
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 
+from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
+
 BASE_DIR = Path(__file__).parent
 DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
 
@@ -16,19 +19,8 @@ DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
 with open(DATA_FILE, "r") as f:
     OMOP_CDM = json.load(f)
 
-MCP_DOC_INSTRUCTION = """
-When selecting the best OMOP concept and vocabulary, always refer to the official OMOP CDM v5.4 documentation: https://ohdsi.github.io/CommonDataModel/faq.html and https://ohdsi.github.io/CommonDataModel/vocabulary.html.
-Use the mapping conventions, standard concept definitions, and vocabulary guidance provided there to ensure your selection is accurate and consistent with OMOP best practices. Prefer concepts that are marked as 'Standard' and 'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for measurements, etc.) unless otherwise specified.
-
-Return mapping result using ALL fields in this exact format:
-ID | CODE | NAME | CLASS | CONCEPT | VALIDITY | DOMAIN | VOCAB | URL | REASON
-The URL field should be a direct link to the concept in Athena.
-For the REASON field, provide a concise explanation of why this concept was selected, any special considerations about the mapping, and how additional details from the source term should be handled in OMOP.
-Do not include any other text or explanations unless there are critical warnings.
-""".strip()
-
 # Initialize server
-mcp = FastMCP("omop_concept_mapper")
+mcp = FastMCP(name="omop_concept_mapper")
 
 
 @mcp.resource("omop://tables")
@@ -51,7 +43,18 @@ async def map_clinical_concept() -> types.GetPromptResult:
                 role="user",
                 content=types.TextContent(
                     type="text",
-                    text="Please help map this clinical term to an OMOP concept: {{term}}",
+                    text=EXAMPLE_INPUT,
+                ),
+            ),
+            types.PromptMessage(
+                role="assistant",
+                content=types.TextContent(type="text", text=EXAMPLE_OUTPUT),
+            ),
+            types.PromptMessage(
+                role="user",
+                content=types.TextContent(
+                    type="text",
+                    text="{{term}}",
                 ),
             ),
         ],
@@ -71,25 +74,11 @@ async def find_omop_concept(
         omop_field: The concept ID field name
 
     Returns:
-        Dict containing the best matching concept or error information, including processing time in seconds.
+        Dict containing the best matching concept or error information.
     """
-
-    start = time.perf_counter()
-    # Validate OMOP table and field
-    if omop_table not in OMOP_CDM:
-        elapsed = time.perf_counter() - start
-        return {
-            "error": f"OMOP table '{omop_table}' not found in OMOP CDM.",
-            "instruction": MCP_DOC_INSTRUCTION,
-            "processing_time_sec": f"{elapsed:.3f}",
-        }
-    if omop_field not in OMOP_CDM[omop_table]:
-        elapsed = time.perf_counter() - start
-        return {
-            "error": f"Field '{omop_field}' not found in OMOP table '{omop_table}'.",
-            "instruction": MCP_DOC_INSTRUCTION,
-            "processing_time_sec": f"{elapsed:.3f}",
-        }
+    logging.info(
+        f"find_omop_concept called with keyword='{keyword}', omop_table='{omop_table}', omop_field='{omop_field}'"
+    )
 
     # Create a new session for each request
     async with aiohttp.ClientSession() as session:
@@ -108,11 +97,8 @@ async def find_omop_concept(
                 response.raise_for_status()
                 data = await response.json()
         except aiohttp.ClientError as e:
-            elapsed = time.perf_counter() - start
             return {
                 "error": f"Failed to query Athena: {str(e)}",
-                "instruction": MCP_DOC_INSTRUCTION,
-                "processing_time_sec": f"{elapsed:.3f}",
             }
 
         concepts = []
@@ -125,11 +111,8 @@ async def find_omop_concept(
                     break
 
         if not concepts:
-            elapsed = time.perf_counter() - start
             return {
                 "error": "No results found or unexpected response structure.",
-                "instruction": MCP_DOC_INSTRUCTION,
-                "processing_time_sec": f"{elapsed:.3f}",
             }
 
         # Prioritize Standard and Valid concepts
@@ -139,38 +122,70 @@ async def find_omop_concept(
                 c.get("standardConcept", "").lower() == "standard"
                 or c.get("standardConcept", "").upper() == "S"
             )
-            is_valid = c.get("validity", c.get("invalidReason", "")).lower() == "valid"
+            is_valid = c.get("invalidReason", c.get("validity", "")).lower() == "valid"
             if is_standard and is_valid:
                 prioritized.append(c)
 
         if not prioritized:
-            elapsed = time.perf_counter() - start
             return {
-                "id": "",
-                "code": "",
-                "name": "",
-                "class": "",
-                "concept": "",
-                "validity": "",
-                "domain": "",
-                "vocab": "",
-                "url": "",
-                "processing_time_sec": f"{elapsed:.3f}",
+                "error": "No 'Standard' and 'Valid' concept found for the given keyword.",
             }
 
+        # Add domain filtering based on OMOP table
+        domain_mapping = {
+            "drug_exposure": "Drug",
+            "condition_occurrence": "Condition",
+            "measurement": "Measurement",
+            "procedure_occurrence": "Procedure",
+            "observation": "Observation",
+            "device_exposure": "Device",
+        }
+
+        expected_domain = domain_mapping.get(omop_table)
+        if expected_domain:
+            domain_filtered = [
+                c
+                for c in prioritized
+                if c.get("domain", c.get("domainId", "")) == expected_domain
+            ]
+            if domain_filtered:
+                prioritized = domain_filtered
+
+        # Add vocabulary prioritization based on OMOP table/domain
+        vocab_priority = {
+            "drug_exposure": ["RxNorm", "RxNorm Extension", "SNOMED"],
+            "condition_occurrence": ["SNOMED", "ICD10CM", "ICD9CM"],
+            "measurement": ["LOINC", "SNOMED"],
+            "procedure_occurrence": ["SNOMED", "CPT4", "ICD10PCS"],
+            "observation": ["SNOMED"],
+            "device_exposure": ["SNOMED"],
+        }
+
+        preferred_vocabs = vocab_priority.get(omop_table, [])
+        if preferred_vocabs:
+            for vocab in preferred_vocabs:
+                vocab_filtered = [
+                    c
+                    for c in prioritized
+                    if c.get("vocabulary", c.get("vocabularyId", "")) == vocab
+                ]
+                if vocab_filtered:
+                    prioritized = vocab_filtered
+                    break
+
+        logging.info(f"prioritized: {prioritized}")
         best = prioritized[0]
-        elapsed = time.perf_counter() - start
+
         return {
-            "id": best.get("id", ""),
+            "concept_id": best.get("id", ""),
             "code": best.get("code", ""),
             "name": best.get("name", ""),
-            "class": best.get("classId", best.get("className", "")),
+            "class": best.get("className", ""),
             "concept": best.get("standardConcept", ""),
-            "validity": best.get("validity", best.get("invalidReason", "")),
+            "validity": best.get("invalidReason", best.get("validity", "")),
             "domain": best.get("domain", best.get("domainId", "")),
             "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
             "url": f"https://athena.ohdsi.org/search-terms/terms/{best.get('id', '')}",
-            "processing_time_sec": f"{elapsed:.3f}",
         }
 
 
@@ -183,7 +198,7 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
     with open(csv_path, newline="", encoding="utf-8") as infile:
         reader = csv.DictReader(infile)
         fieldnames = reader.fieldnames + [
-            "id",
+            "concept_id",
             "code",
             "name",
             "class",
@@ -192,12 +207,12 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             "domain",
             "vocab",
             "url",
-            "processing_time_sec",
+            "reason",
         ]
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
         for row in reader:
-            keyword = row.get("keywords", "")
+            keyword = row.get("keyword", "")
             omop_field = row.get("omop_field", "")
             omop_table = row.get("omop_table", "")
             result = await find_omop_concept(keyword, omop_table, omop_field)
@@ -207,5 +222,9 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
     return output.getvalue()
 
 
-if __name__ == "__main__":
+def main():
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()
