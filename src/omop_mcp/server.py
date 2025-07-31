@@ -63,18 +63,20 @@ async def map_clinical_concept() -> types.GetPromptResult:
 
 @mcp.tool()
 async def find_omop_concept(
-    keyword: str, omop_table: str, omop_field: str
+    keyword: str, omop_table: str, omop_field: str, max_results: int = 20
 ) -> Dict[str, Any]:
     """
-    Find the best-matching OMOP concept for a given keyword, table, and field.
+    Find OMOP concepts for a given keyword, table, and field.
+    Returns multiple candidates for LLM to choose from based on context.
 
     Args:
         keyword: The clinical term to map
         omop_table: The OMOP CDM table name
         omop_field: The concept ID field name
+        max_results: Maximum number of candidate concepts to return
 
     Returns:
-        Dict containing the best matching concept or error information.
+        Dict containing candidate concepts or error information.
     """
     logging.info(
         f"find_omop_concept called with keyword='{keyword}', omop_table='{omop_table}', omop_field='{omop_field}'"
@@ -115,23 +117,23 @@ async def find_omop_concept(
                 "error": "No results found or unexpected response structure.",
             }
 
-        # Prioritize Standard and Valid concepts
-        prioritized = []
-        for c in concepts:
-            is_standard = (
-                c.get("standardConcept", "").lower() == "standard"
-                or c.get("standardConcept", "").upper() == "S"
-            )
-            is_valid = c.get("invalidReason", c.get("validity", "")).lower() == "valid"
-            if is_standard and is_valid:
-                prioritized.append(c)
-
-        if not prioritized:
-            return {
-                "error": "No 'Standard' and 'Valid' concept found for the given keyword.",
+        # Return multiple candidates with all their metadata for LLM to evaluate
+        candidates = []
+        for i, c in enumerate(concepts[:max_results]):
+            candidate = {
+                "concept_id": c.get("id", ""),
+                "code": c.get("code", ""),
+                "name": c.get("name", ""),
+                "class": c.get("className", ""),
+                "concept": c.get("standardConcept", ""),
+                "validity": c.get("invalidReason", c.get("validity", "")),
+                "domain": c.get("domain", c.get("domainId", "")),
+                "vocab": c.get("vocabulary", c.get("vocabularyId", "")),
+                "url": f"https://athena.ohdsi.org/search-terms/terms/{c.get('id', '')}",
             }
+            candidates.append(candidate)
 
-        # Add domain filtering based on OMOP table
+        # Provide metadata to help LLM make informed decisions
         domain_mapping = {
             "drug_exposure": "Drug",
             "condition_occurrence": "Condition",
@@ -141,18 +143,7 @@ async def find_omop_concept(
             "device_exposure": "Device",
         }
 
-        expected_domain = domain_mapping.get(omop_table)
-        if expected_domain:
-            domain_filtered = [
-                c
-                for c in prioritized
-                if c.get("domain", c.get("domainId", "")) == expected_domain
-            ]
-            if domain_filtered:
-                prioritized = domain_filtered
-
-        # Add vocabulary prioritization based on OMOP table/domain
-        vocab_priority = {
+        vocab_recommendations = {
             "drug_exposure": ["RxNorm", "RxNorm Extension", "SNOMED"],
             "condition_occurrence": ["SNOMED", "ICD10CM", "ICD9CM"],
             "measurement": ["LOINC", "SNOMED"],
@@ -161,31 +152,23 @@ async def find_omop_concept(
             "device_exposure": ["SNOMED"],
         }
 
-        preferred_vocabs = vocab_priority.get(omop_table, [])
-        if preferred_vocabs:
-            for vocab in preferred_vocabs:
-                vocab_filtered = [
-                    c
-                    for c in prioritized
-                    if c.get("vocabulary", c.get("vocabularyId", "")) == vocab
-                ]
-                if vocab_filtered:
-                    prioritized = vocab_filtered
-                    break
-
-        logging.info(f"prioritized: {prioritized}")
-        best = prioritized[0]
-
         return {
-            "concept_id": best.get("id", ""),
-            "code": best.get("code", ""),
-            "name": best.get("name", ""),
-            "class": best.get("className", ""),
-            "concept": best.get("standardConcept", ""),
-            "validity": best.get("invalidReason", best.get("validity", "")),
-            "domain": best.get("domain", best.get("domainId", "")),
-            "vocab": best.get("vocabulary", best.get("vocabularyId", "")),
-            "url": f"https://athena.ohdsi.org/search-terms/terms/{best.get('id', '')}",
+            "candidates": candidates,
+            "search_metadata": {
+                "keyword_searched": keyword,
+                "omop_table": omop_table,
+                "omop_field": omop_field,
+                "expected_domain": domain_mapping.get(omop_table, "Unknown"),
+                "recommended_vocabularies": vocab_recommendations.get(omop_table, []),
+                "total_found": len(concepts),
+                "candidates_returned": len(candidates),
+                "selection_guidance": (
+                    "Select the most appropriate concept based on clinical context. "
+                    "Generally prefer Standard + Valid concepts from recommended vocabularies, "
+                    "but context may require different choices (e.g., research needs, "
+                    "specific vocabulary requirements, or non-standard mappings)."
+                ),
+            },
         }
 
 
