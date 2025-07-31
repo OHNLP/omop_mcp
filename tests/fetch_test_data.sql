@@ -24,4 +24,4 @@ SELECT order_mnemonic as medication, COUNT(order_mnemonic) AS event_count
 FROM MED_ADMIN
 WHERE order_mnemonic <> ''
 GROUP BY order_mnemonic
-ORDER BY event_count;
+ORDER BY event_count DESC;
