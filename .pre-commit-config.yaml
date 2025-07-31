@@ -22,11 +22,10 @@ repos:
           - "--settings-file"
           - "./pyproject.toml"
 
-  # Strip notebook metadata and contents
+  # Strip notebook output and metadata
   - repo: https://github.com/kynan/nbstripout
     rev: 0.6.1
     hooks:
       - id: nbstripout
         args:
           - "--drop-empty-cells"
-          - "--strip-cells"

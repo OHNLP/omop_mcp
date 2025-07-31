@@ -29,7 +29,7 @@ ignore = "E501"
 
 [tool.black]
 line-length = 88
-target-version = ["py312"]
+target-version = ["py311"]
 include = '\.pyi?$'
 exclude = '''
 /(
