@@ -1,3 +1,5 @@
+-- FROM MHH database
+
 -- Find measurement keywords
 SELECT clinical_event, COUNT(clinical_event) as event_count
 FROM CLINICAL_EVENTS
@@ -25,3 +27,40 @@ FROM MED_ADMIN
 WHERE order_mnemonic <> ''
 GROUP BY order_mnemonic
 ORDER BY event_count DESC;
+
+-- FROM UTHealth OMOP
+
+-- Get mapping test datasets from UTPhysicians
+-- Find measurement keywords
+-- Sources: CLARITY, ALLSCRIPTS, SUNRISE_HCPC
+SELECT
+    CONCAT(UPPER(SRC_PANEL_NAME), ' - ', UPPER(SRC_COMPONENT_NAME)) AS keyword,
+    SUM(FREQ) AS count,
+    athena_id AS concept_id_manual_mapping
+FROM (
+    SELECT DISTINCT SRC_PANEL_NAME, SRC_COMPONENT_NAME, athena_id, FREQ
+    FROM mappings.master_lab_mappings_index
+    WHERE athena_id <> ''
+        AND SRC <> 'MHH_COVID'
+) t
+GROUP BY CONCAT(UPPER(SRC_PANEL_NAME), ' - ', UPPER(SRC_COMPONENT_NAME)), athena_id
+ORDER BY count DESC;
+
+-- Find procedure keywords with concatenated concept IDs
+SELECT
+    SRC_NAME as keyword,
+    SUM(FREQ) AS count,
+    STRING_AGG(CAST(procedure_concept_id AS VARCHAR), ',') AS concept_id_manual_mapping
+FROM mappings.master_procedure_mappings_index
+WHERE procedure_concept_id <> ''
+    AND SRC <> 'MHH_COVID'
+GROUP BY SRC_NAME
+ORDER BY count DESC;
+
+-- Find medication keywords
+SELECT DISTINCT SRC_CODE AS keyword,
+       NULL AS count,
+       CODE AS concept_id_manual_mapping
+FROM mappings.master_drug_mappings_index
+WHERE CODE <> '' AND SRC <> 'MHH_COVID';
+
