@@ -35,22 +35,18 @@ ORDER BY event_count DESC;
 -- Sources: CLARITY, ALLSCRIPTS, SUNRISE_HCPC
 SELECT
     CONCAT(UPPER(SRC_PANEL_NAME), ' - ', UPPER(SRC_COMPONENT_NAME)) AS keyword,
-    SUM(FREQ) AS count,
-    athena_id AS concept_id_manual_mapping
-FROM (
-    SELECT DISTINCT SRC_PANEL_NAME, SRC_COMPONENT_NAME, athena_id, FREQ
-    FROM mappings.master_lab_mappings_index
-    WHERE athena_id <> ''
-        AND SRC <> 'MHH_COVID'
-) t
-GROUP BY CONCAT(UPPER(SRC_PANEL_NAME), ' - ', UPPER(SRC_COMPONENT_NAME)), athena_id
-ORDER BY count DESC;
+    NULL AS count,
+    STRING_AGG(CAST(athena_id AS VARCHAR), ', ') AS concept_id_manual_mapping
+FROM mappings.master_lab_mappings_index
+WHERE athena_id <> ''
+    AND SRC <> 'MHH_COVID'
+GROUP BY CONCAT(UPPER(SRC_PANEL_NAME), ' - ', UPPER(SRC_COMPONENT_NAME));
 
 -- Find procedure keywords with concatenated concept IDs
 SELECT
     SRC_NAME as keyword,
     SUM(FREQ) AS count,
-    STRING_AGG(CAST(procedure_concept_id AS VARCHAR), ',') AS concept_id_manual_mapping
+    STRING_AGG(CAST(procedure_concept_id AS VARCHAR), ', ') AS concept_id_manual_mapping
 FROM mappings.master_procedure_mappings_index
 WHERE procedure_concept_id <> ''
     AND SRC <> 'MHH_COVID'
