@@ -34,13 +34,12 @@ ORDER BY event_count DESC;
 -- Find measurement keywords
 -- Sources: CLARITY, ALLSCRIPTS, SUNRISE_HCPC
 SELECT
-    CONCAT(UPPER(SRC_PANEL_NAME), ' - ', UPPER(SRC_COMPONENT_NAME)) AS keyword,
+    DISTINCT CONCAT(UPPER(SRC_PANEL_NAME), ' - ', UPPER(SRC_COMPONENT_NAME)) AS keyword,
     NULL AS count,
     STRING_AGG(CAST(athena_id AS VARCHAR), ', ') AS concept_id_manual_mapping
 FROM mappings.master_lab_mappings_index
 WHERE athena_id <> ''
     AND SRC <> 'MHH_COVID'
-GROUP BY CONCAT(UPPER(SRC_PANEL_NAME), ' - ', UPPER(SRC_COMPONENT_NAME));
 
 -- Find procedure keywords with concatenated concept IDs
 SELECT
