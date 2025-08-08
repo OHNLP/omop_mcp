@@ -13,6 +13,14 @@ email = "jaerongahn@gmail.com"
 requires = [ "hatchling",]
 build-backend = "hatchling.build"
 
+[project.optional-dependencies]
+dev = [
+    "black",
+    "isort",
+    "flake8",
+    "pre-commit"
+]
+
 [project.scripts]
 omop_mcp = "omop_mcp:main"
 
@@ -21,7 +29,7 @@ ignore = "E501"
 
 [tool.black]
 line-length = 88
-target-version = ["py312"]
+target-version = ["py311"]
 include = '\.pyi?$'
 exclude = '''
 /(

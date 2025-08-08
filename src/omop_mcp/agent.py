@@ -105,15 +105,20 @@ Keep the REASONING concise - just note if you made any changes to the keyword an
 
 Original user request: {user_prompt}
 
-Based on your analysis, map `{adjusted_keyword}` for `{omop_field}` in the `{omop_table}` table.
+Based on your analysis, find concepts for `{adjusted_keyword}` for `{omop_field}` in the `{omop_table}` table.
 
 Your previous reasoning for this keyword was: {reasoning}
+
+The tool will return multiple candidate concepts. You must:
+1. Review all candidates considering their Standard/Valid status, domain, vocabulary, and clinical appropriateness
+2. Select the MOST APPROPRIATE concept based on the context and any specific requirements mentioned
+3. Provide clear reasoning for your selection
 
 {EXAMPLE_INPUT}
 
 {EXAMPLE_OUTPUT}
 
-Please provide your response in the exact format shown above, including the REASON field that incorporates your keyword interpretation reasoning.
+After reviewing the candidates, provide your response in the exact format shown above, including the REASON field that explains your selection criteria and incorporates your keyword interpretation reasoning.
 """
 
     # Let the agent handle the tool call
