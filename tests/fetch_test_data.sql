@@ -53,9 +53,12 @@ GROUP BY SRC_NAME
 ORDER BY count DESC;
 
 -- Find medication keywords
+-- concept id should be fetched from v5_4.concept table by joining on concept_code
 SELECT DISTINCT SRC_CODE AS keyword,
        NULL AS count,
-       CODE AS concept_id_manual_mapping
-FROM mappings.master_drug_mappings_index
+    c.concept_id AS concept_id_manual_mapping
+FROM mappings.master_drug_mappings_index id
+JOIN (SELECT concept_id, concept_code FROM v5_4.concept WHERE vocabulary_id='RxNorm') c
+ON id.CODE = c.concept_code
 WHERE CODE <> '' AND SRC <> 'MHH_COVID';
 
