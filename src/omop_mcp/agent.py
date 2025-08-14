@@ -50,19 +50,40 @@ async def run_agent(user_prompt: str, llm_provider: str = "azure_openai") -> dic
 
     # Step 1: Get LLM reasoning about keyword interpretation and extract components
     reasoning_prompt = f"""
-You are an OMOP concept mapping expert. Analyze this request and extract the key components:
+    You are an OMOP concept mapping expert with deep clinical knowledge. Your task is to analyze this request and determine what the medical keyword actually means in clinical context, even if the user doesn't specify exact OMOP details.
 
-User request: "{user_prompt}"
+    User request: "{user_prompt}"
 
-Output format:
-KEYWORD: [the main clinical term/keyword to map]
-OMOP_TABLE: [the OMOP table mentioned or implied]
-OMOP_FIELD: [the OMOP field mentioned or implied] 
-ADJUSTED_KEYWORD: [the keyword you would actually search for]
-REASONING: [brief explanation of any keyword adjustments or interpretation]
+    **CRITICAL: You must interpret the medical keyword clinically, not just extract it literally.**
 
-Keep the REASONING concise - just note if you made any changes to the keyword and why.
-"""
+    Consider:
+    - What does this keyword mean in medical terminology?
+    - What is the most likely clinical concept the user is looking for?
+    - Are there common medical abbreviations that need expansion?
+    - What would a clinician understand this to mean?
+    - What OMOP table/field would be most appropriate if not specified?
+
+    Examples of proper interpretation:
+    - "CP" in condition context → "chest pain" (not just "CP")
+    - "temp" in measurement context → "temperature" (not just "temp") 
+    - "BP" in measurement context → "blood pressure" (not just "BP")
+    - "MI" in condition context → "myocardial infarction" (not just "MI")
+
+    **Handle natural language flexibly:**
+    - "Map chest pain" → infer condition_occurrence.condition_concept_id
+    - "Find concept for diabetes" → infer condition_occurrence.condition_concept_id
+    - "What's the OMOP code for aspirin?" → infer drug_exposure.drug_concept_id
+    - "Temperature measurement" → infer measurement.measurement_concept_id
+
+    Output format:
+    KEYWORD: [the main clinical term/keyword to map]
+    OMOP_TABLE: [the OMOP table mentioned or implied - infer if not specified]
+    OMOP_FIELD: [the OMOP field mentioned or implied - infer if not specified] 
+    ADJUSTED_KEYWORD: [the keyword you would actually search for - this should be the CLINICAL interpretation, not the literal input]
+    REASONING: [explain your clinical interpretation, why you expanded/changed the keyword, and how you inferred the OMOP table/field if not specified]
+
+    **Remember: The ADJUSTED_KEYWORD should be what you would actually search for in a medical database, not the literal user input. If OMOP details aren't specified, make intelligent inferences based on the clinical concept.**
+    """
 
     reasoning_result = await agent.run(reasoning_prompt)
     reasoning_response = (
