@@ -161,7 +161,7 @@ After reviewing the candidates, provide your response in the exact format shown 
                 "omop_field": omop_field,
                 "adjusted_keyword": adjusted_keyword,
             },
-            "original_reasoning": reasoning,
+            "keyword_interpretation_reasoning": reasoning,
         },
     }
 
