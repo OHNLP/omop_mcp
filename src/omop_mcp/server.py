@@ -2,10 +2,12 @@ import csv
 import io
 import json
 import logging
-import time
 from pathlib import Path
 from typing import Any, Dict, List
 
+from bs4 import BeautifulSoup
+
+logging.basicConfig(level=logging.INFO)
 import aiohttp
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
@@ -29,7 +31,38 @@ async def list_omop_tables() -> Dict[str, List[str]]:
     return OMOP_CDM
 
 
-@mcp.resource("omop://vocabularies")
+@mcp.resource("omop://documentation")
+async def omop_documentation() -> str:
+    """Fetch live OMOP CDM documentation including vocabulary rules."""
+    url = "https://ohdsi.github.io/CommonDataModel/vocabulary.html"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                html_content = await response.text()
+                soup = BeautifulSoup(html_content, "html.parser")
+
+                # Remove script and style elements
+                for script in soup(["script", "style"]):
+                    script.decompose()
+
+                # Extract main content
+                main_content = (
+                    soup.find("div", class_="container-fluid main-container")
+                    or soup.body
+                )
+
+                if main_content:
+                    text = main_content.get_text()
+                    # Clean up
+                    lines = (line.strip() for line in text.splitlines())
+                    chunks = (
+                        phrase.strip() for line in lines for phrase in line.split("  ")
+                    )
+                    clean_text = " ".join(chunk for chunk in chunks if chunk)
+    return clean_text
+
+
+@mcp.resource("omop://preferred_vocabularies")
 async def get_vocabulary_preference() -> Dict[str, List[str]]:
     """Preferred vocabulary for each OMOP domain in the order of preference."""
     return {
