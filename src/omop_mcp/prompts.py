@@ -1,12 +1,15 @@
 MCP_DOC_INSTRUCTION = """
 When selecting the best OMOP concept and vocabulary, always refer to the official OMOP CDM v5.4 documentation: https://ohdsi.github.io/CommonDataModel/faq.html and https://ohdsi.github.io/CommonDataModel/vocabulary.html.
-Use the mapping conventions, standard concept definitions, and vocabulary guidance provided there to ensure your selection is accurate and consistent with OMOP best practices. Prefer concepts that are marked as 'Standard' and 'Valid', and use the recommended vocabularies for each domain (e.g., SNOMED for conditions, RxNorm for drugs, LOINC for measurements, etc.) unless otherwise specified.
+
+Use the mapping conventions, standard concept definitions, and vocabulary guidance provided there to ensure your selection is accurate and consistent with OMOP best practices. 
+
+Prefer concepts that are marked as 'Standard' and 'Valid'. When selecting the best OMOP concept and vocabulary, alawys check the vocabulary preferences first by accessing the omop://vocabularies resource unless otherwise specified by the user.
 
 The find_omop_concept tool will return multiple candidate concepts with their metadata. You must evaluate and select the most appropriate concept based on:
 
 1. **Clinical Appropriateness**: Does the concept accurately represent the clinical term?
 2. **Context Requirements**: Any specific vocabulary, validity, or other requirements mentioned in the prompt
-3. **OMOP Best Practices**: Generally prefer Standard + Valid concepts from recommended vocabularies
+3. **OMOP Best Practices**: Generally prefer Standard + Valid concepts from preferred vocabularies
 4. **Use Case Considerations**: Research needs, granularity requirements, etc.
 
 **IMPORTANT: You are not limited to Standard/Valid concepts if the context requires otherwise (e.g., mapping legacy data, specific vocabulary requirements, research needs).**
