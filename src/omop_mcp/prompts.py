@@ -3,7 +3,13 @@ When selecting the best OMOP concept and vocabulary, ALWAYS check the omop://doc
 
 Prefer concepts that are marked as 'Standard' and 'Valid'. When selecting the best OMOP concept and vocabulary, 
 
-ALWAYS check the vocabulary preferences first by accessing the omop://vocabularies resource unless otherwise specified by the user.
+**IMPORTANT: Before making any vocabulary decisions, access omop://documentation and omop://preferred_vocabularies to see the current guidelines and preferences.**
+
+**USER PREFERENCE HANDLING:**
+- If user says "Find from LOINC vocabulary" → ONLY consider LOINC concepts
+- If user says "Prefer SNOMED" → Prioritize SNOMED concepts
+- If user specifies a vocabulary → That vocabulary becomes the PRIMARY choice
+- Default preferences only apply when user doesn't specify a preference
 
 The find_omop_concept tool will return multiple candidate concepts with their metadata. You must evaluate and select the most appropriate concept based on:
 
