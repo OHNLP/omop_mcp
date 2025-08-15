@@ -149,6 +149,7 @@ async def find_omop_concept(
                 "error": f"Failed to query Athena: {str(e)}",
             }
 
+        logging.info(f"Athena response: {data}")
         concepts = []
         if isinstance(data, list):
             concepts = data
@@ -179,37 +180,17 @@ async def find_omop_concept(
             }
             candidates.append(candidate)
 
-        # Provide metadata to help LLM make informed decisions
-        domain_mapping = {
-            "drug_exposure": "Drug",
-            "condition_occurrence": "Condition",
-            "measurement": "Measurement",
-            "procedure_occurrence": "Procedure",
-            "observation": "Observation",
-            "device_exposure": "Device",
-        }
-
-        vocab_recommendations = {
-            "drug_exposure": ["RxNorm", "RxNorm Extension", "SNOMED"],
-            "condition_occurrence": ["SNOMED", "ICD10CM", "ICD9CM"],
-            "measurement": ["LOINC", "SNOMED"],
-            "procedure_occurrence": ["SNOMED", "CPT4", "ICD10PCS"],
-            "observation": ["SNOMED"],
-            "device_exposure": ["SNOMED"],
-        }
-
         return {
             "candidates": candidates,
             "search_metadata": {
                 "keyword_searched": keyword,
                 "omop_table": omop_table,
                 "omop_field": omop_field,
-                "expected_domain": domain_mapping.get(omop_table, "Unknown"),
-                "recommended_vocabularies": vocab_recommendations.get(omop_table, []),
                 "total_found": len(concepts),
                 "candidates_returned": len(candidates),
                 "selection_guidance": (
                     "Select the most appropriate concept based on clinical context. "
+                    "Access omop://preferred_vocabularies for vocabulary preferences. "
                     "Generally prefer Standard + Valid concepts from recommended vocabularies, "
                     "but context may require different choices (e.g., research needs, "
                     "specific vocabulary requirements, or non-standard mappings)."
