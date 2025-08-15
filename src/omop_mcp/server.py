@@ -29,6 +29,19 @@ async def list_omop_tables() -> Dict[str, List[str]]:
     return OMOP_CDM
 
 
+@mcp.resource("omop://vocabularies")
+async def get_vocabulary_preference() -> Dict[str, List[str]]:
+    """Preferred vocabulary for each OMOP domain in the order of preference."""
+    return {
+        "measurement": ["LOINC", "SNOMED"],
+        "condition_occurrence": ["SNOMED", "ICD10CM", "ICD9CM"],
+        "drug_exposure": ["RxNorm", "RxNorm Extension", "SNOMED"],
+        "procedure_occurrence": ["SNOMED", "CPT4", "ICD10PCS"],
+        "observation": ["SNOMED"],
+        "device_exposure": ["SNOMED"],
+    }
+
+
 @mcp.prompt()
 async def map_clinical_concept() -> types.GetPromptResult:
     """Create a prompt for mapping clinical concepts."""
