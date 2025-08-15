@@ -1,9 +1,9 @@
 MCP_DOC_INSTRUCTION = """
-When selecting the best OMOP concept and vocabulary, always refer to the official OMOP CDM v5.4 documentation: https://ohdsi.github.io/CommonDataModel/faq.html and https://ohdsi.github.io/CommonDataModel/vocabulary.html.
+When selecting the best OMOP concept and vocabulary, ALWAYS check the omop://documentation resource first for official OMOP CDM v5.4 vocabulary rules and mapping guidelines.
 
-Use the mapping conventions, standard concept definitions, and vocabulary guidance provided there to ensure your selection is accurate and consistent with OMOP best practices. 
+Prefer concepts that are marked as 'Standard' and 'Valid'. When selecting the best OMOP concept and vocabulary, 
 
-Prefer concepts that are marked as 'Standard' and 'Valid'. When selecting the best OMOP concept and vocabulary, alawys check the vocabulary preferences first by accessing the omop://vocabularies resource unless otherwise specified by the user.
+ALWAYS check the vocabulary preferences first by accessing the omop://vocabularies resource unless otherwise specified by the user.
 
 The find_omop_concept tool will return multiple candidate concepts with their metadata. You must evaluate and select the most appropriate concept based on:
 
