@@ -149,7 +149,7 @@ async def find_omop_concept(
                 "error": f"Failed to query Athena: {str(e)}",
             }
 
-        logging.info(f"Athena response: {data}")
+        logging.debug(f"Athena response: {data}")
         concepts = []
         if isinstance(data, list):
             concepts = data
