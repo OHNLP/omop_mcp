@@ -2,8 +2,6 @@
 
 Model Context Protocol (MCP) server for mapping clinical terminology to Observational Medical Outcomes Partnership (OMOP) concepts using Large Language Models (LLMs).
 
-## Installation
-
 ### Configuration for Claude Desktop
 
 Add the following configuration to your `claude_desktop_config.json` file:
@@ -47,17 +45,21 @@ The OMOP MCP server provides the `find_omop_concept` tool for:
 
 **Response:**
 
-```json
-{
-  "id": 46235152,
-  "code": "75539-7",
-  "name": "Body temperature - Temporal artery",
-  "class": "Clinical Observation",
-  "concept": "Standard",
-  "validity": "Valid",
-  "domain": "Measurement",
-  "vocab": "LOINC",
-  "url": "https://athena.ohdsi.org/search-terms/terms/46235152",
-  "processing_time_sec": "0.601"
-}
 ```
+CONCEPT_ID: 46235152
+CODE: 75539-7
+NAME: Body temperature - Temporal artery
+CLASS: Clinical Observation
+CONCEPT: Standard
+VALIDITY: Valid
+DOMAIN: Measurement
+VOCAB: LOINC
+URL: https://athena.ohdsi.org/search-terms/terms/46235152
+REASON: This LOINC concept specifically represents body temperature measured at the temporal artery, which is what a temporal scanner measures. The "RR" in your source term likely refers to "Recovery Room" or another location/department indicator, but in OMOP, the location would typically be captured in a separate field rather than as part of the measurement concept itself.
+```
+
+## License
+
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) file for details.
+
+**Contact:** jaerongahn@gmail.com
