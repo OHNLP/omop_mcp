@@ -2,10 +2,12 @@ import csv
 import io
 import json
 import logging
-import time
 from pathlib import Path
 from typing import Any, Dict, List
 
+from bs4 import BeautifulSoup
+
+logging.basicConfig(level=logging.INFO)
 import aiohttp
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
@@ -27,6 +29,50 @@ mcp = FastMCP(name="omop_concept_mapper")
 async def list_omop_tables() -> Dict[str, List[str]]:
     """List all OMOP CDM tables and their concept ID fields."""
     return OMOP_CDM
+
+
+@mcp.resource("omop://documentation")
+async def omop_documentation() -> str:
+    """Fetch live OMOP CDM documentation including vocabulary rules."""
+    url = "https://ohdsi.github.io/CommonDataModel/vocabulary.html"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                html_content = await response.text()
+                soup = BeautifulSoup(html_content, "html.parser")
+
+                # Remove script and style elements
+                for script in soup(["script", "style"]):
+                    script.decompose()
+
+                # Extract main content
+                main_content = (
+                    soup.find("div", class_="container-fluid main-container")
+                    or soup.body
+                )
+
+                if main_content:
+                    text = main_content.get_text()
+                    # Clean up
+                    lines = (line.strip() for line in text.splitlines())
+                    chunks = (
+                        phrase.strip() for line in lines for phrase in line.split("  ")
+                    )
+                    clean_text = " ".join(chunk for chunk in chunks if chunk)
+    return clean_text
+
+
+@mcp.resource("omop://preferred_vocabularies")
+async def get_vocabulary_preference() -> Dict[str, List[str]]:
+    """Preferred vocabulary for each OMOP domain in the order of preference."""
+    return {
+        "measurement": ["LOINC", "SNOMED"],
+        "condition_occurrence": ["SNOMED", "ICD10CM", "ICD9CM"],
+        "drug_exposure": ["RxNorm", "RxNorm Extension", "SNOMED"],
+        "procedure_occurrence": ["SNOMED", "CPT4", "ICD10PCS"],
+        "observation": ["SNOMED"],
+        "device_exposure": ["SNOMED"],
+    }
 
 
 @mcp.prompt()
@@ -103,6 +149,7 @@ async def find_omop_concept(
                 "error": f"Failed to query Athena: {str(e)}",
             }
 
+        logging.debug(f"Athena response: {data}")
         concepts = []
         if isinstance(data, list):
             concepts = data
@@ -133,37 +180,17 @@ async def find_omop_concept(
             }
             candidates.append(candidate)
 
-        # Provide metadata to help LLM make informed decisions
-        domain_mapping = {
-            "drug_exposure": "Drug",
-            "condition_occurrence": "Condition",
-            "measurement": "Measurement",
-            "procedure_occurrence": "Procedure",
-            "observation": "Observation",
-            "device_exposure": "Device",
-        }
-
-        vocab_recommendations = {
-            "drug_exposure": ["RxNorm", "RxNorm Extension", "SNOMED"],
-            "condition_occurrence": ["SNOMED", "ICD10CM", "ICD9CM"],
-            "measurement": ["LOINC", "SNOMED"],
-            "procedure_occurrence": ["SNOMED", "CPT4", "ICD10PCS"],
-            "observation": ["SNOMED"],
-            "device_exposure": ["SNOMED"],
-        }
-
         return {
             "candidates": candidates,
             "search_metadata": {
                 "keyword_searched": keyword,
                 "omop_table": omop_table,
                 "omop_field": omop_field,
-                "expected_domain": domain_mapping.get(omop_table, "Unknown"),
-                "recommended_vocabularies": vocab_recommendations.get(omop_table, []),
                 "total_found": len(concepts),
                 "candidates_returned": len(candidates),
                 "selection_guidance": (
                     "Select the most appropriate concept based on clinical context. "
+                    "Access omop://preferred_vocabularies for vocabulary preferences. "
                     "Generally prefer Standard + Valid concepts from recommended vocabularies, "
                     "but context may require different choices (e.g., research needs, "
                     "specific vocabulary requirements, or non-standard mappings)."
