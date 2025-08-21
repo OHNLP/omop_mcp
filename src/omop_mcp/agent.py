@@ -79,10 +79,10 @@ async def run_agent(user_prompt: str, llm_provider: str = "azure_openai") -> dic
     KEYWORD: [the main clinical term/keyword to map]
     OMOP_TABLE: [the OMOP table mentioned or implied - infer if not specified]
     OMOP_FIELD: [the OMOP field mentioned or implied - infer if not specified] 
-    ADJUSTED_KEYWORD: [the keyword you would actually search for - this should be the CLINICAL interpretation, not the literal input]
+    INFERRED_KEYWORD: [the keyword you would actually search for - this should be the CLINICAL interpretation, not the literal input]
     REASONING: [explain your clinical interpretation, why you expanded/changed the keyword, and how you inferred the OMOP table/field if not specified]
 
-    **Remember: The ADJUSTED_KEYWORD should be what you would actually search for in a medical database, not the literal user input. If OMOP details aren't specified, make intelligent inferences based on the clinical concept.**
+    **Remember: The INFERRED_KEYWORD should be what you would actually search for in a medical database, not the literal user input. If OMOP details aren't specified, make intelligent inferences based on the clinical concept.**
     """
 
     reasoning_result = await agent.run(reasoning_prompt)
@@ -96,7 +96,7 @@ async def run_agent(user_prompt: str, llm_provider: str = "azure_openai") -> dic
     keyword = ""
     omop_table = ""
     omop_field = ""
-    adjusted_keyword = ""
+    inferred_keyword = ""
     reasoning = ""
 
     for line in reasoning_response.split("\n"):
@@ -107,18 +107,18 @@ async def run_agent(user_prompt: str, llm_provider: str = "azure_openai") -> dic
             omop_table = line.replace("OMOP_TABLE:", "").strip()
         elif line.startswith("OMOP_FIELD:"):
             omop_field = line.replace("OMOP_FIELD:", "").strip()
-        elif line.startswith("ADJUSTED_KEYWORD:"):
-            adjusted_keyword = line.replace("ADJUSTED_KEYWORD:", "").strip()
+        elif line.startswith("INFERRED_KEYWORD:"):
+            inferred_keyword = line.replace("INFERRED_KEYWORD:", "").strip()
         elif line.startswith("REASONING:"):
             reasoning = line.replace("REASONING:", "").strip()
 
     # If parsing failed, use fallbacks
     if not keyword:
         keyword = "unknown"
-    if not adjusted_keyword:
-        adjusted_keyword = keyword
+    if not inferred_keyword:
+        inferred_keyword = keyword
     if not reasoning:
-        reasoning = f"Used keyword '{adjusted_keyword}' as provided."
+        reasoning = f"Used keyword '{inferred_keyword}' as provided."
 
     # Step 2: Use the extracted information in a tool call
     final_prompt = f"""
@@ -126,7 +126,7 @@ async def run_agent(user_prompt: str, llm_provider: str = "azure_openai") -> dic
 
 Original user request: {user_prompt}
 
-Based on your analysis, find concepts for `{adjusted_keyword}` for `{omop_field}` in the `{omop_table}` table.
+Based on your analysis, find concepts for `{inferred_keyword}` for `{omop_field}` in the `{omop_table}` table.
 
 Your previous reasoning for this keyword was: {reasoning}
 
@@ -159,7 +159,7 @@ After reviewing the candidates, provide your response in the exact format shown 
                 "keyword": keyword,
                 "omop_table": omop_table,
                 "omop_field": omop_field,
-                "adjusted_keyword": adjusted_keyword,
+                "inferred_keyword": inferred_keyword,
             },
             "keyword_interpretation_reasoning": reasoning,
         },
