@@ -58,9 +58,13 @@ URL: https://athena.ohdsi.org/search-terms/terms/46235152
 REASON: This LOINC concept specifically represents body temperature measured at the temporal artery, which is what a temporal scanner measures. The "RR" in your source term likely refers to "Recovery Room" or another location/department indicator, but in OMOP, the location would typically be captured in a separate field rather than as part of the measurement concept itself.
 ```
 
-## Pre-print at arXiv (cs.AI):
+## Citation Policy
+
+If you use this software, please cite the pre-print at arXiv (cs.AI) below:
 
 [An Agentic Model Context Protocol Framework for Medical Concept Standardization](https://arxiv.org/abs/2509.03828)
+
+![DOI](https://img.shields.io/badge/DOI-10.48550%2FarXiv.2509.03828-blue)
 
 ## License
 
