@@ -1,8 +1,6 @@
 # OMOP MCP Server
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
-![Python](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![arXiv](https://img.shields.io/badge/arXiv-2509.03828-b31b1b.svg)
 
 Model Context Protocol (MCP) server for mapping clinical terminology to Observational Medical Outcomes Partnership (OMOP) concepts using Large Language Models (LLMs).
@@ -62,6 +60,10 @@ VOCAB: LOINC
 URL: https://athena.ohdsi.org/search-terms/terms/46235152
 REASON: This LOINC concept specifically represents body temperature measured at the temporal artery, which is what a temporal scanner measures. The "RR" in your source term likely refers to "Recovery Room" or another location/department indicator, but in OMOP, the location would typically be captured in a separate field rather than as part of the measurement concept itself.
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTION.md) for guidelines to contribute to the project.
 
 ## Citation Policy
 
