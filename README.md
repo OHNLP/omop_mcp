@@ -1,5 +1,10 @@
 # OMOP MCP Server
 
+![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
+![Python](https://img.shields.io/badge/python-3.12+-blue.svg)
+![arXiv](https://img.shields.io/badge/arXiv-2509.03828-b31b1b.svg)
+
 Model Context Protocol (MCP) server for mapping clinical terminology to Observational Medical Outcomes Partnership (OMOP) concepts using Large Language Models (LLMs).
 
 ### Configuration for Claude Desktop
@@ -63,8 +68,6 @@ REASON: This LOINC concept specifically represents body temperature measured at 
 If you use this software, please cite the pre-print at arXiv (cs.AI) below:
 
 [An Agentic Model Context Protocol Framework for Medical Concept Standardization](https://arxiv.org/abs/2509.03828)
-
-![DOI](https://img.shields.io/badge/DOI-10.48550%2FarXiv.2509.03828-blue)
 
 ## License
 
