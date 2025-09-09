@@ -4,25 +4,47 @@ import requests
 
 
 def search_athena_concept(keyword: str):
+    """
+    Search for OMOP concepts using the Athena web interface.
+    This function scrapes the search results from the Athena website.
+    """
     url = "https://athena.ohdsi.org/api/v1/concepts"
     params = {"query": keyword}
-    headers = {"User-Agent": "Mozilla/5.0 (compatible)"}
-    response = requests.get(url, params=params, headers=headers, timeout=10)
-    response.raise_for_status()
-    data = response.json()
-    # The response may be a list or a dict with a list under a key
-    if isinstance(data, list):
-        concepts = data
-    elif isinstance(data, dict):
-        for key in ("content", "results", "items", "concepts"):
-            if key in data and isinstance(data[key], list):
-                concepts = data[key]
-                break
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://athena.ohdsi.org/search-terms",
+        "Origin": "https://athena.ohdsi.org",
+    }
+
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        # Extract concepts from the response
+        concepts = []
+        if isinstance(data, dict) and "content" in data:
+            concepts = data["content"]
+        elif isinstance(data, list):
+            concepts = data
+        elif isinstance(data, dict):
+            for key in ("content", "results", "items", "concepts"):
+                if key in data and isinstance(data[key], list):
+                    concepts = data[key]
+                    break
         else:
             concepts = []
-    else:
-        concepts = []
-    return concepts
+
+        return concepts
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error searching Athena: {e}")
+        return []
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return []
 
 
 def concept_id_exists_in_athena(concept_id: str) -> bool:

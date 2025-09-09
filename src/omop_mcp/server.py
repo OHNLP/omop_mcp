@@ -133,11 +133,11 @@ async def find_omop_concept(
         url = "https://athena.ohdsi.org/api/v1/concepts"
         params = {"query": keyword}
         headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/111.0.0.0 Safari/537.36"
-            )
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Referer": "https://athena.ohdsi.org/search-terms",
+            "Origin": "https://athena.ohdsi.org",
         }
 
         try:
@@ -151,7 +151,9 @@ async def find_omop_concept(
 
         logging.debug(f"Athena response: {data}")
         concepts = []
-        if isinstance(data, list):
+        if isinstance(data, dict) and "content" in data:
+            concepts = data["content"]
+        elif isinstance(data, list):
             concepts = data
         elif isinstance(data, dict):
             for key in ("content", "results", "items", "concepts"):
