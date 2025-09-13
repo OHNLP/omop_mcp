@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/ohnlp-omop-mcp-badge.png)](https://mseep.ai/app/ohnlp-omop-mcp)
+
 # OMOP MCP Server
 
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
