@@ -26,9 +26,9 @@ def get_agent(
     if llm_provider == "azure_openai":
         llm = AzureChatOpenAI(
             azure_deployment=os.getenv("MODEL_NAME"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
-            api_version=os.getenv("AZURE_API_VERSION_WEST"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=os.getenv("AZURE_API_VERSION"),
             temperature=0,
             seed=42,
         )
@@ -178,9 +178,9 @@ async def run_llm_no_mcp(
     if llm_provider == "azure_openai":
         llm = AzureChatOpenAI(
             azure_deployment=os.getenv("MODEL_NAME"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
-            api_version=os.getenv("AZURE_API_VERSION_WEST"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=os.getenv("AZURE_API_VERSION"),
             temperature=0,
             seed=42,
         )

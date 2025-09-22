@@ -44,7 +44,11 @@ The OMOP MCP server provides the `find_omop_concept` tool for:
 - You can specify preferred vocabularies for the mapping in order of priority (e.g., "SNOMED preferred" or "LOINC > SNOMED > RxNorm").
 
 **Prompt:**
-"Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
+
+```
+Map `Temperature Temporal Scanner - RR` for`measurement_concept_id`
+in the `measurement` table.
+```
 
 **Response:**
 
@@ -58,7 +62,12 @@ VALIDITY: Valid
 DOMAIN: Measurement
 VOCAB: LOINC
 URL: https://athena.ohdsi.org/search-terms/terms/46235152
-REASON: This LOINC concept specifically represents body temperature measured at the temporal artery, which is what a temporal scanner measures. The "RR" in your source term likely refers to "Recovery Room" or another location/department indicator, but in OMOP, the location would typically be captured in a separate field rather than as part of the measurement concept itself.
+REASON: This LOINC concept specifically represents body temperature measured
+at the temporal artery, which is what a temporal scanner measures.
+The "RR" in your source term likely refers to "Recovery Room" or
+another location/department indicator, but in OMOP, the location would
+typically be captured in a separate field rather than
+as part of the measurement concept itself.
 ```
 
 ## Contributing
