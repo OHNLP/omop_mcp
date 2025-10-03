@@ -26,9 +26,9 @@ def get_agent(
     if llm_provider == "azure_openai":
         llm = AzureChatOpenAI(
             azure_deployment=os.getenv("MODEL_NAME"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
-            api_version=os.getenv("AZURE_API_VERSION_WEST"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=os.getenv("AZURE_API_VERSION"),
             temperature=0,
             seed=42,
         )
@@ -50,19 +50,40 @@ async def run_agent(user_prompt: str, llm_provider: str = "azure_openai") -> dic
 
     # Step 1: Get LLM reasoning about keyword interpretation and extract components
     reasoning_prompt = f"""
-You are an OMOP concept mapping expert. Analyze this request and extract the key components:
+    You are an OMOP concept mapping expert with deep clinical knowledge. Your task is to analyze this request and determine what the medical keyword actually means in clinical context, even if the user doesn't specify exact OMOP details.
 
-User request: "{user_prompt}"
+    User request: "{user_prompt}"
 
-Output format:
-KEYWORD: [the main clinical term/keyword to map]
-OMOP_TABLE: [the OMOP table mentioned or implied]
-OMOP_FIELD: [the OMOP field mentioned or implied] 
-ADJUSTED_KEYWORD: [the keyword you would actually search for]
-REASONING: [brief explanation of any keyword adjustments or interpretation]
+    **CRITICAL: You must interpret the medical keyword clinically, not just extract it literally.**
 
-Keep the REASONING concise - just note if you made any changes to the keyword and why.
-"""
+    Consider:
+    - What does this keyword mean in medical terminology?
+    - What is the most likely clinical concept the user is looking for?
+    - Are there common medical abbreviations that need expansion?
+    - What would a clinician understand this to mean?
+    - What OMOP table/field would be most appropriate if not specified?
+
+    Examples of proper interpretation:
+    - "CP" in condition context → "chest pain" (not just "CP")
+    - "temp" in measurement context → "temperature" (not just "temp") 
+    - "BP" in measurement context → "blood pressure" (not just "BP")
+    - "MI" in condition context → "myocardial infarction" (not just "MI")
+
+    **Handle natural language flexibly:**
+    - "Map chest pain" → infer condition_occurrence.condition_concept_id
+    - "Find concept for diabetes" → infer condition_occurrence.condition_concept_id
+    - "What's the OMOP code for aspirin?" → infer drug_exposure.drug_concept_id
+    - "Temperature measurement" → infer measurement.measurement_concept_id
+
+    Output format:
+    KEYWORD: [the main clinical term/keyword to map]
+    OMOP_TABLE: [the OMOP table mentioned or implied - infer if not specified]
+    OMOP_FIELD: [the OMOP field mentioned or implied - infer if not specified] 
+    INFERRED_KEYWORD: [the keyword you would actually search for - this should be the CLINICAL interpretation, not the literal input]
+    REASONING: [explain your clinical interpretation, why you expanded/changed the keyword, and how you inferred the OMOP table/field if not specified]
+
+    **Remember: The INFERRED_KEYWORD should be what you would actually search for in a medical database, not the literal user input. If OMOP details aren't specified, make intelligent inferences based on the clinical concept.**
+    """
 
     reasoning_result = await agent.run(reasoning_prompt)
     reasoning_response = (
@@ -75,7 +96,7 @@ Keep the REASONING concise - just note if you made any changes to the keyword an
     keyword = ""
     omop_table = ""
     omop_field = ""
-    adjusted_keyword = ""
+    inferred_keyword = ""
     reasoning = ""
 
     for line in reasoning_response.split("\n"):
@@ -86,18 +107,18 @@ Keep the REASONING concise - just note if you made any changes to the keyword an
             omop_table = line.replace("OMOP_TABLE:", "").strip()
         elif line.startswith("OMOP_FIELD:"):
             omop_field = line.replace("OMOP_FIELD:", "").strip()
-        elif line.startswith("ADJUSTED_KEYWORD:"):
-            adjusted_keyword = line.replace("ADJUSTED_KEYWORD:", "").strip()
+        elif line.startswith("INFERRED_KEYWORD:"):
+            inferred_keyword = line.replace("INFERRED_KEYWORD:", "").strip()
         elif line.startswith("REASONING:"):
             reasoning = line.replace("REASONING:", "").strip()
 
     # If parsing failed, use fallbacks
     if not keyword:
         keyword = "unknown"
-    if not adjusted_keyword:
-        adjusted_keyword = keyword
+    if not inferred_keyword:
+        inferred_keyword = keyword
     if not reasoning:
-        reasoning = f"Used keyword '{adjusted_keyword}' as provided."
+        reasoning = f"Used keyword '{inferred_keyword}' as provided."
 
     # Step 2: Use the extracted information in a tool call
     final_prompt = f"""
@@ -105,7 +126,7 @@ Keep the REASONING concise - just note if you made any changes to the keyword an
 
 Original user request: {user_prompt}
 
-Based on your analysis, find concepts for `{adjusted_keyword}` for `{omop_field}` in the `{omop_table}` table.
+Based on your analysis, find concepts for `{inferred_keyword}` for `{omop_field}` in the `{omop_table}` table.
 
 Your previous reasoning for this keyword was: {reasoning}
 
@@ -138,9 +159,9 @@ After reviewing the candidates, provide your response in the exact format shown 
                 "keyword": keyword,
                 "omop_table": omop_table,
                 "omop_field": omop_field,
-                "adjusted_keyword": adjusted_keyword,
+                "inferred_keyword": inferred_keyword,
             },
-            "original_reasoning": reasoning,
+            "keyword_interpretation_reasoning": reasoning,
         },
     }
 
@@ -157,9 +178,9 @@ async def run_llm_no_mcp(
     if llm_provider == "azure_openai":
         llm = AzureChatOpenAI(
             azure_deployment=os.getenv("MODEL_NAME"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT_WEST"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY_WEST"),
-            api_version=os.getenv("AZURE_API_VERSION_WEST"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version=os.getenv("AZURE_API_VERSION"),
             temperature=0,
             seed=42,
         )
