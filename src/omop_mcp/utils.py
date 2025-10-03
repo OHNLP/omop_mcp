@@ -1,5 +1,10 @@
+import os
 import re
+import sqlite3
+from pathlib import Path
+from typing import Any
 
+import pandas as pd
 import requests
 
 
@@ -171,3 +176,219 @@ def clean_url_formatting(response: str) -> str:
         return url
 
     return re.sub(markdown_link_pattern, replace_markdown_link, response)
+
+
+class VocabDBService:
+    """Service for querying local OMOP vocabulary database."""
+
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            # Use relative path from project root
+            project_root = Path(__file__).parent.parent.parent
+            self.db_path = project_root / "data" / "vocab" / "omop_vocab.db"
+        else:
+            self.db_path = Path(db_path)
+
+        self.is_available = self._check_availability()
+
+    def _check_availability(self) -> bool:
+        """Check if local database is available."""
+        try:
+            if not self.db_path.exists():
+                return False
+            conn = sqlite3.connect(str(self.db_path))
+            conn.execute("SELECT COUNT(*) FROM concept LIMIT 1")
+            conn.close()
+            return True
+        except Exception:
+            return False
+
+    def search_concepts(
+        self, keyword: str, max_results: int = 20
+    ) -> list[dict[str, Any]]:
+        """Search for concepts in local database."""
+        if not self.is_available:
+            return []
+
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+
+            # Search in both concept_name and concept_synonym
+            query = """
+            SELECT DISTINCT 
+                c.concept_id,
+                c.concept_name,
+                c.concept_code,
+                c.vocabulary_id,
+                c.domain_id,
+                c.concept_class_id,
+                c.standard_concept,
+                c.invalid_reason
+            FROM concept c
+            LEFT JOIN concept_synonym cs ON c.concept_id = cs.concept_id
+            WHERE 
+                c.concept_name LIKE ? 
+                OR cs.concept_synonym_name LIKE ?
+                OR c.concept_code LIKE ?
+            ORDER BY 
+                CASE WHEN c.standard_concept = 'S' THEN 1 ELSE 2 END,
+                c.concept_name
+            LIMIT ?
+            """
+
+            search_term = f"%{keyword}%"
+            results = pd.read_sql(
+                query, conn, params=[search_term, search_term, search_term, max_results]
+            )
+            conn.close()
+
+            return results.to_dict("records")
+
+        except Exception as e:
+            print(f"Error searching local database: {e}")
+            return []
+
+    def get_database_status(self) -> dict[str, Any]:
+        """Get status of local vocabulary database."""
+        if not self.is_available:
+            return {
+                "status": "unavailable",
+                "error": "Local vocabulary database not found or corrupted",
+                "database_path": str(self.db_path),
+            }
+
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+
+            # Get basic stats
+            total_concepts = pd.read_sql("SELECT COUNT(*) as count FROM concept", conn)[
+                "count"
+            ].iloc[0]
+
+            # Get vocabulary counts
+            vocab_counts = pd.read_sql(
+                """
+                SELECT vocabulary_id, COUNT(*) as count 
+                FROM concept 
+                GROUP BY vocabulary_id 
+                ORDER BY count DESC 
+                LIMIT 10
+            """,
+                conn,
+            )
+
+            # Get domain counts
+            domain_counts = pd.read_sql(
+                """
+                SELECT domain_id, COUNT(*) as count 
+                FROM concept 
+                GROUP BY domain_id 
+                ORDER BY count DESC
+            """,
+                conn,
+            )
+
+            conn.close()
+
+            return {
+                "status": "available",
+                "database_path": str(self.db_path),
+                "total_concepts": int(total_concepts),
+                "top_vocabularies": vocab_counts.to_dict("records"),
+                "domains": domain_counts.to_dict("records"),
+                "last_checked": pd.Timestamp.now().isoformat(),
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "database_path": str(self.db_path),
+            }
+
+    def search_by_vocabulary(
+        self, keyword: str, vocabulary_id: str, max_results: int = 20
+    ) -> list[dict[str, Any]]:
+        """Search for concepts in a specific vocabulary."""
+        if not self.is_available:
+            return []
+
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+
+            query = """
+            SELECT DISTINCT 
+                c.concept_id,
+                c.concept_name,
+                c.concept_code,
+                c.vocabulary_id,
+                c.domain_id,
+                c.concept_class_id,
+                c.standard_concept,
+                c.invalid_reason
+            FROM concept c
+            LEFT JOIN concept_synonym cs ON c.concept_id = cs.concept_id
+            WHERE 
+                c.vocabulary_id = ?
+                AND (c.concept_name LIKE ? 
+                     OR cs.concept_synonym_name LIKE ?
+                     OR c.concept_code LIKE ?)
+            ORDER BY 
+                CASE WHEN c.standard_concept = 'S' THEN 1 ELSE 2 END,
+                c.concept_name
+            LIMIT ?
+            """
+
+            search_term = f"%{keyword}%"
+            results = pd.read_sql(
+                query,
+                conn,
+                params=[
+                    vocabulary_id,
+                    search_term,
+                    search_term,
+                    search_term,
+                    max_results,
+                ],
+            )
+            conn.close()
+
+            return results.to_dict("records")
+
+        except Exception as e:
+            print(f"Error searching local database: {e}")
+            return []
+
+    def get_concept_by_id(self, concept_id: int) -> dict[str, Any] | None:
+        """Get a specific concept by its ID."""
+        if not self.is_available:
+            return None
+
+        try:
+            conn = sqlite3.connect(str(self.db_path))
+
+            query = """
+            SELECT 
+                c.concept_id,
+                c.concept_name,
+                c.concept_code,
+                c.vocabulary_id,
+                c.domain_id,
+                c.concept_class_id,
+                c.standard_concept,
+                c.invalid_reason
+            FROM concept c
+            WHERE c.concept_id = ?
+            """
+
+            result = pd.read_sql(query, conn, params=[concept_id])
+            conn.close()
+
+            if result.empty:
+                return None
+
+            return result.iloc[0].to_dict()
+
+        except Exception as e:
+            print(f"Error getting concept by ID: {e}")
+            return None

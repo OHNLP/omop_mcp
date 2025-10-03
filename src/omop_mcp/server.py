@@ -13,6 +13,7 @@ import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 
 from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
+from omop_mcp.utils import VocabDBService
 
 BASE_DIR = Path(__file__).parent
 DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
@@ -23,6 +24,9 @@ with open(DATA_FILE, "r") as f:
 
 # Initialize server
 mcp = FastMCP(name="omop_concept_mapper")
+
+# Initialize local vocabulary service
+vocab_db_service = VocabDBService()
 
 
 @mcp.resource("omop://tables")
@@ -232,6 +236,89 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             row.update(result)
             writer.writerow(row)
     return output.getvalue()
+
+
+@mcp.tool()
+async def find_omop_concept_local(
+    keyword: str, omop_table: str, omop_field: str, max_results: int = 20
+) -> Dict[str, Any]:
+    """
+    Find OMOP concepts from local vocabulary database.
+
+    Args:
+        keyword: The clinical term to map
+        omop_table: The OMOP CDM table name
+        omop_field: The concept ID field name
+        max_results: Maximum number of candidate concepts to return
+
+    Returns:
+        Dict containing candidate concepts from local database.
+    """
+    logging.info(f"find_omop_concept_local called with keyword='{keyword}'")
+
+    # Check if local database is available
+    if not vocab_db_service.is_available:
+        return {
+            "error": "Local vocabulary database not available.",
+            "candidates": [],
+            "search_metadata": {
+                "keyword_searched": keyword,
+                "omop_table": omop_table,
+                "omop_field": omop_field,
+                "source": "local_database",
+                "status": "unavailable",
+            },
+        }
+
+    # Search local database
+    concepts = vocab_db_service.search_concepts(keyword, max_results)
+
+    if not concepts:
+        return {
+            "candidates": [],
+            "search_metadata": {
+                "keyword_searched": keyword,
+                "omop_table": omop_table,
+                "omop_field": omop_field,
+                "total_found": 0,
+                "candidates_returned": 0,
+                "source": "local_database",
+                "status": "no_results",
+            },
+        }
+
+    # Format results
+    candidates = []
+    for concept in concepts:
+        candidate = {
+            "concept_id": str(concept["concept_id"]),
+            "code": str(concept["concept_code"]),
+            "name": concept["concept_name"],
+            "class": concept["concept_class_id"],
+            "concept": concept["standard_concept"],
+            "validity": "Valid" if concept["invalid_reason"] is None else "Invalid",
+            "domain": concept["domain_id"],
+            "vocab": concept["vocabulary_id"],
+            "url": f"https://athena.ohdsi.org/search-terms/terms/{concept['concept_id']}",
+        }
+        candidates.append(candidate)
+
+    return {
+        "candidates": candidates,
+        "search_metadata": {
+            "keyword_searched": keyword,
+            "omop_table": omop_table,
+            "omop_field": omop_field,
+            "total_found": len(concepts),
+            "candidates_returned": len(candidates),
+            "source": "local_database",
+            "selection_guidance": (
+                "Local database results - select the most appropriate concept based on clinical context. "
+                "Access omop://preferred_vocabularies for vocabulary preferences. "
+                "Generally prefer Standard + Valid concepts from recommended vocabularies."
+            ),
+        },
+    }
 
 
 def main():
