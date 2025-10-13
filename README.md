@@ -18,6 +18,27 @@ Before configuring the MCP server, ensure you have:
    cd omop_mcp
    ```
 
+3. Set up environment variables (only for API calls)
+
+   Copy .env.template and configure your API credentials:
+
+   ```bash
+   cp .env.template .env
+   ```
+
+   Edit `.env` with API credentials:
+
+   ```bash
+   # Azure OpenAI Configuration
+   AZURE_OPENAI_ENDPOINT=
+   AZURE_OPENAI_API_KEY=
+   AZURE_API_VERSION=
+   MODEL_NAME=
+
+   # OpenAI Configuration (alternative)
+   OPENAI_API_KEY=
+   ```
+
 ### Configuration for Claude Desktop
 
 Add the following configuration to your `claude_desktop_config.json` file:
