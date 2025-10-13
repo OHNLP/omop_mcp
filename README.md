@@ -5,6 +5,40 @@
 
 Model Context Protocol (MCP) server for mapping clinical terminology to Observational Medical Outcomes Partnership (OMOP) concepts using Large Language Models (LLMs).
 
+### Installation
+
+Before configuring the MCP server, ensure you have:
+
+1. **uv** installed on your system
+   - Install from: https://docs.astral.sh/uv/getting-started/installation/
+2. Clone the repository
+
+   ```bash
+   git clone https://github.com/OHNLP/omop_mcp.git
+   cd omop_mcp
+   ```
+
+3. Set up environment variables (only for API calls)
+
+   Copy .env.template and configure your API credentials:
+
+   ```bash
+   cp .env.template .env
+   ```
+
+   Edit `.env` with API credentials:
+
+   ```bash
+   # Azure OpenAI Configuration
+   AZURE_OPENAI_ENDPOINT=
+   AZURE_OPENAI_API_KEY=
+   AZURE_API_VERSION=
+   MODEL_NAME=
+
+   # OpenAI Configuration (alternative)
+   OPENAI_API_KEY=
+   ```
+
 ### Configuration for Claude Desktop
 
 Add the following configuration to your `claude_desktop_config.json` file:
@@ -15,6 +49,8 @@ Add the following configuration to your `claude_desktop_config.json` file:
 - Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
 **Configuration:**
+
+Replace `<path-to-local-repo>` with the actual path to your cloned repository.
 
 ```json
 {
@@ -46,7 +82,7 @@ The OMOP MCP server provides the `find_omop_concept` tool for:
 **Prompt:**
 
 ```
-Map `Temperature Temporal Scanner - RR` for`measurement_concept_id`
+Map `Temperature Temporal Scanner - RR` for `measurement_concept_id`
 in the `measurement` table.
 ```
 
