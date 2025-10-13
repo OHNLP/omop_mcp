@@ -8,7 +8,7 @@ from omop_mcp.agent import run_agent
 
 
 async def main(llm_provider, data_path, batch_size):
-    # Set data pathh
+    # Set data path
     data_path = Path(data_path)
     result_path = data_path.with_suffix("_results.csv")
 
