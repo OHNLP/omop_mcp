@@ -6,29 +6,30 @@ import pandas as pd
 from omop_mcp import utils
 from omop_mcp.agent import run_agent
 
-data_path = Path("./data/evaluate/combined_mapping.csv")
-df = pd.read_csv(data_path)
 
-# Load existing results to find where to resume
-results_path = Path("./tests/data/combined_mapping_results.csv")
-if results_path.exists():
-    existing_results = pd.read_csv(results_path)
-    processed_keywords = set(existing_results["keyword"])
-    print(f"Found {len(existing_results)} existing results")
-else:
-    processed_keywords = set()
-    print("No existing results found, starting from beginning")
+async def main(llm_provider, data_path, batch_size):
+    # Set data pathh
+    data_path = Path(data_path)
+    result_path = data_path.with_suffix("_results.csv")
 
-# Filter df to only unprocessed rows
-df = df[~df["keyword"].isin(processed_keywords)]
-print(f"Remaining rows to process: {len(df)}")
+    # Load data
+    df = pd.read_csv(data_path)
 
-BATCH_SIZE = 50
+    if result_path.exists():
+        existing_results = pd.read_csv(result_path)
+        processed_keywords = set(existing_results["keyword"])
+        print(f"Found {len(existing_results)} existing results")
+    else:
+        existing_results = pd.DataFrame()
+        processed_keywords = set()
+        print("No existing results found, starting from beginning")
 
+    # Filter df to only unprocessed rows
+    df = df[~df["keyword"].isin(processed_keywords)]
+    print(f"Remaining rows to process: {len(df)}")
 
-async def main():
-    for batch_start in range(0, len(df), BATCH_SIZE):
-        batch_end = min(batch_start + BATCH_SIZE, len(df))
+    for batch_start in range(0, len(df), batch_size):
+        batch_end = min(batch_start + batch_size, len(df))
         batch_df = df.iloc[batch_start:batch_end]
 
         results = []
@@ -37,7 +38,7 @@ async def main():
             prompt = f"Map `{keyword}` for `{row['omop_field']}` in the `{row['omop_table']}` table."
 
             print(f"Processing {keyword}...")
-            agent_result = await run_agent(prompt)
+            agent_result = await run_agent(prompt, llm_provider=llm_provider)
             print(agent_result)
             llm_response = utils.parse_agent_response(agent_result["response"])
 
@@ -45,8 +46,6 @@ async def main():
                 "keyword": row["keyword"],
                 "omop_field": row["omop_field"],
                 "omop_table": row["omop_table"],
-                "count": row["count"],
-                "qunatile": row["quartile"],
                 "concept_id": llm_response["concept_id"],
                 "code": llm_response["code"],
                 "concept_name": llm_response["name"],
@@ -80,19 +79,18 @@ async def main():
         batch_results = pd.DataFrame(results)
 
         if len(existing_results) == 0 and batch_start == 0:
-            batch_results.to_csv(
-                f"./tests/data/{data_path.stem}_results.csv", index=False
-            )
+            batch_results.to_csv(result_path, index=False)
         else:
-            batch_results.to_csv(
-                f"./tests/data/{data_path.stem}_results.csv",
-                mode="a",
-                header=False,
-                index=False,
-            )
+            batch_results.to_csv(result_path, mode="a", header=False, index=False)
 
-        print(f"Batch {batch_start//BATCH_SIZE + 1} appended.")
+        print(f"Batch {batch_start//batch_size + 1} appended.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+
+    # Set parameters here
+    DATA_PATH = "../data/evaluate/batch_mapping.csv"
+    LLM_PROVIDER = "azure_openai"
+    BATCH_SIZE = 50
+
+    asyncio.run(main(LLM_PROVIDER, DATA_PATH, BATCH_SIZE))
