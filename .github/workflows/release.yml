@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install git-cliff
+        run: |
+          wget -q -O - https://github.com/orhun/git-cliff/releases/download/v2.3.0/git-cliff-2.3.0-x86_64-unknown-linux-gnu.tar.gz | tar -xz
+          sudo mv git-cliff /usr/local/bin/
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get last tag
+        id: last_tag
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -z "$LAST_TAG" ]; then
+            echo "last_tag=" >> $GITHUB_OUTPUT
+            echo "has_tag=false" >> $GITHUB_OUTPUT
+          else
+            echo "last_tag=$LAST_TAG" >> $GITHUB_OUTPUT
+            echo "has_tag=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for version-worthy commits
+        id: check_commits
+        run: |
+          if [ "${{ steps.last_tag.outputs.has_tag }}" = "false" ]; then
+            COMMITS=$(git log --oneline)
+          else
+            COMMITS=$(git log ${{ steps.last_tag.outputs.last_tag }}..HEAD --oneline)
+          fi
+          
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          if echo "$COMMITS" | grep -qE "^(feat|fix|!|BREAKING)"; then
+            echo "has_version_commits=true" >> $GITHUB_OUTPUT
+          elif echo "$COMMITS" | grep -qE "^Merge pull request"; then
+            echo "has_version_commits=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_version_commits=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Determine bump type
+          if echo "$COMMITS" | grep -qE "(!|BREAKING)"; then
+            echo "bump_type=major" >> $GITHUB_OUTPUT
+          elif echo "$COMMITS" | grep -qE "^feat"; then
+            echo "bump_type=minor" >> $GITHUB_OUTPUT
+          else
+            echo "bump_type=patch" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump version
+        if: steps.check_commits.outputs.has_version_commits == 'true'
+        id: bump_version
+        run: |
+          python scripts/bump_version.py ${{ steps.check_commits.outputs.bump_type }}
+          NEW_VERSION=$(python -c "import re; f=open('pyproject.toml'); content=f.read(); f.close(); match=re.search(r'version\s*=\s*\"([^\"]+)\"', content); print(match.group(1) if match else '')")
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate CHANGELOG
+        if: steps.check_commits.outputs.has_version_commits == 'true'
+        run: |
+          if [ "${{ steps.last_tag.outputs.has_tag }}" = "false" ]; then
+            git-cliff --output CHANGELOG.md
+          else
+            git-cliff --output CHANGELOG.md --latest
+          fi
+
+      - name: Create release commit
+        if: steps.check_commits.outputs.has_version_commits == 'true'
+        run: |
+          git add pyproject.toml CHANGELOG.md
+          git commit -m "chore: release v${{ steps.bump_version.outputs.new_version }}"
+          git push origin main
+
+      - name: Create tag
+        if: steps.check_commits.outputs.has_version_commits == 'true'
+        run: |
+          git tag -a "v${{ steps.bump_version.outputs.new_version }}" -m "Release v${{ steps.bump_version.outputs.new_version }}"
+          git push origin "v${{ steps.bump_version.outputs.new_version }}"
+
+      - name: Create GitHub Release
+        if: steps.check_commits.outputs.has_version_commits == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.bump_version.outputs.new_version }}
+          name: Release v${{ steps.bump_version.outputs.new_version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+

@@ -1,0 +1,40 @@
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+"""
+footer = """
+---
+**Full Changelog**: https://github.com/OHNLP/omop_mcp/compare/{previous_tag}...{new_version}
+"""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+commit_parsers = [
+    { message = "^feat", group = "Features" },
+    { message = "^fix", group = "Bug Fixes" },
+    { message = "^docs", group = "Documentation" },
+    { message = "^style", group = "Styling" },
+    { message = "^refactor", group = "Refactoring" },
+    { message = "^perf", group = "Performance" },
+    { message = "^test", group = "Testing" },
+    { message = "^build", group = "Build System" },
+    { message = "^ci", group = "CI" },
+    { message = "^chore", group = "Miscellaneous" },
+    { message = "^Merge pull request", group = "Merged Pull Requests" },
+    { message = "^Merge branch", group = "Merged Pull Requests" },
+]
+skip_tags = []
+ignore_tags = []
+date_order = "oldest"
+sort = "oldest"
+link_parsers = [
+    { pattern = "\(#(\d+)\)", href = "https://github.com/OHNLP/omop_mcp/pull/$1" },
+    { pattern = "#(\d+)", href = "https://github.com/OHNLP/omop_mcp/issues/$1" },
+]
+
