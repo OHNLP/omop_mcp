@@ -76,32 +76,44 @@ def search_athena_concept(keyword: str):
 async def search_athena_concept_async(keyword: str):
     """
     Async version of search_athena_concept using aiohttp.
+
+    Raises RuntimeError for API failures (connection/HTTP errors).
+    Returns empty list for successful API calls with no results.
     """
     async with aiohttp.ClientSession() as session:
         # First, visit the search page to establish a session and get cookies
         try:
             async with session.get(
-                ATHENA_SEARCH_URL, headers=INITIAL_PAGE_HEADERS
+                ATHENA_SEARCH_URL,
+                headers=INITIAL_PAGE_HEADERS,
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as _:
                 pass
-        except Exception:
-            pass
+        except aiohttp.ClientError as e:
+            raise RuntimeError(
+                f"Failed to establish session with Athena API: {e}"
+            ) from e
+        except Exception as e:
+            raise RuntimeError(
+                f"Unexpected error establishing Athena session: {e}"
+            ) from e
 
         params = {"query": keyword}
 
         try:
             async with session.get(
-                ATHENA_API_URL, params=params, headers=API_HEADERS
+                ATHENA_API_URL,
+                params=params,
+                headers=API_HEADERS,
+                timeout=aiohttp.ClientTimeout(total=10),
             ) as response:
                 response.raise_for_status()
                 data = await response.json()
                 return _extract_concepts_from_response(data)
         except aiohttp.ClientError as e:
-            print(f"Error searching Athena: {e}")
-            return []
+            raise RuntimeError(f"Athena API request failed: {e}") from e
         except Exception as e:
-            print(f"Unexpected error: {e}")
-            return []
+            raise RuntimeError(f"Unexpected error calling Athena API: {e}") from e
 
 
 def concept_id_exists_in_athena(concept_id: str) -> bool:

@@ -123,17 +123,21 @@ async def find_omop_concept(
         max_results: Maximum number of candidate concepts to return
 
     Returns:
-        Dict containing candidate concepts or error information.
+        Dict containing candidate concepts or error information if no results found.
     """
     logging.info(
         f"find_omop_concept called with keyword='{keyword}', omop_table='{omop_table}', omop_field='{omop_field}'"
     )
 
-    concepts = await utils.search_athena_concept_async(keyword)
+    try:
+        concepts = await utils.search_athena_concept_async(keyword)
+    except Exception as e:
+        logging.error(f"Athena API call failed: {e}")
+        raise RuntimeError(f"Athena API is not accessible: {e}") from e
 
     if not concepts:
         return {
-            "error": "No results found or unexpected response structure.",
+            "error": f"No results found for keyword '{keyword}'. The search term may not exist in the OMOP vocabulary.",
         }
 
     # Return multiple candidates with all their metadata for LLM to evaluate
