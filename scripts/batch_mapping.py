@@ -57,23 +57,8 @@ async def main(llm_provider, data_path, batch_size):
                 "url": llm_response["url"],
                 "processing_time_sec": agent_result["processing_time_sec"],
                 "reason": llm_response["reason"],
-                "concept_exists": utils.concept_id_exists_in_athena(
-                    llm_response["concept_id"]
-                ),
             }
 
-            if llm_response["concept_id"] and llm_response["name"]:
-                athena_name = utils.get_concept_name_from_athena(
-                    llm_response["concept_id"]
-                )
-                if athena_name is not None:
-                    result["names_match"] = (
-                        athena_name.lower() == llm_response["name"].lower()
-                    )
-                else:
-                    result["names_match"] = None
-            else:
-                result["names_match"] = None
             results.append(result)
 
         batch_results = pd.DataFrame(results)
