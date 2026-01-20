@@ -12,6 +12,7 @@ import aiohttp
 import mcp.types as types
 from mcp.server.fastmcp import FastMCP
 
+from omop_mcp import utils
 from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
 
 BASE_DIR = Path(__file__).parent
@@ -122,83 +123,56 @@ async def find_omop_concept(
         max_results: Maximum number of candidate concepts to return
 
     Returns:
-        Dict containing candidate concepts or error information.
+        Dict containing candidate concepts or error information if no results found.
     """
     logging.info(
         f"find_omop_concept called with keyword='{keyword}', omop_table='{omop_table}', omop_field='{omop_field}'"
     )
 
-    # Create a new session for each request
-    async with aiohttp.ClientSession() as session:
-        url = "https://athena.ohdsi.org/api/v1/concepts"
-        params = {"query": keyword}
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Referer": "https://athena.ohdsi.org/search-terms",
-            "Origin": "https://athena.ohdsi.org",
-        }
+    try:
+        concepts = await utils.search_athena_concept_async(keyword)
+    except Exception as e:
+        logging.error(f"Athena API call failed: {e}")
+        raise RuntimeError(f"Athena API is not accessible: {e}") from e
 
-        try:
-            async with session.get(url, params=params, headers=headers) as response:
-                response.raise_for_status()
-                data = await response.json()
-        except aiohttp.ClientError as e:
-            return {
-                "error": f"Failed to query Athena: {str(e)}",
-            }
-
-        logging.debug(f"Athena response: {data}")
-        concepts = []
-        if isinstance(data, dict) and "content" in data:
-            concepts = data["content"]
-        elif isinstance(data, list):
-            concepts = data
-        elif isinstance(data, dict):
-            for key in ("content", "results", "items", "concepts"):
-                if key in data and isinstance(data[key], list):
-                    concepts = data[key]
-                    break
-
-        if not concepts:
-            return {
-                "error": "No results found or unexpected response structure.",
-            }
-
-        # Return multiple candidates with all their metadata for LLM to evaluate
-        candidates = []
-        for i, c in enumerate(concepts[:max_results]):
-            candidate = {
-                "concept_id": c.get("id", ""),
-                "code": c.get("code", ""),
-                "name": c.get("name", ""),
-                "class": c.get("className", ""),
-                "concept": c.get("standardConcept", ""),
-                "validity": c.get("invalidReason", c.get("validity", "")),
-                "domain": c.get("domain", c.get("domainId", "")),
-                "vocab": c.get("vocabulary", c.get("vocabularyId", "")),
-                "url": f"https://athena.ohdsi.org/search-terms/terms/{c.get('id', '')}",
-            }
-            candidates.append(candidate)
-
+    if not concepts:
         return {
-            "candidates": candidates,
-            "search_metadata": {
-                "keyword_searched": keyword,
-                "omop_table": omop_table,
-                "omop_field": omop_field,
-                "total_found": len(concepts),
-                "candidates_returned": len(candidates),
-                "selection_guidance": (
-                    "Select the most appropriate concept based on clinical context. "
-                    "Access omop://preferred_vocabularies for vocabulary preferences. "
-                    "Generally prefer Standard + Valid concepts from recommended vocabularies, "
-                    "but context may require different choices (e.g., research needs, "
-                    "specific vocabulary requirements, or non-standard mappings)."
-                ),
-            },
+            "error": f"No results found for keyword '{keyword}'. The search term may not exist in the OMOP vocabulary.",
         }
+
+    # Return multiple candidates with all their metadata for LLM to evaluate
+    candidates = []
+    for i, c in enumerate(concepts[:max_results]):
+        candidate = {
+            "concept_id": c.get("id", ""),
+            "code": c.get("code", ""),
+            "name": c.get("name", ""),
+            "class": c.get("className", ""),
+            "concept": c.get("standardConcept", ""),
+            "validity": c.get("invalidReason", c.get("validity", "")),
+            "domain": c.get("domain", c.get("domainId", "")),
+            "vocab": c.get("vocabulary", c.get("vocabularyId", "")),
+            "url": f"https://athena.ohdsi.org/search-terms/terms/{c.get('id', '')}",
+        }
+        candidates.append(candidate)
+
+    return {
+        "candidates": candidates,
+        "search_metadata": {
+            "keyword_searched": keyword,
+            "omop_table": omop_table,
+            "omop_field": omop_field,
+            "total_found": len(concepts),
+            "candidates_returned": len(candidates),
+            "selection_guidance": (
+                "Select the most appropriate concept based on clinical context. "
+                "Access omop://preferred_vocabularies for vocabulary preferences. "
+                "Generally prefer Standard + Valid concepts from recommended vocabularies, "
+                "but context may require different choices (e.g., research needs, "
+                "specific vocabulary requirements, or non-standard mappings)."
+            ),
+        },
+    }
 
 
 @mcp.tool()
