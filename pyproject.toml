@@ -5,7 +5,16 @@ description = "omop medical terminology mapping"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.12"
-dependencies = [ "mcp>=1.7.1", "mcp-use", "langchain-openai", "python-dotenv", "aiohttp", "langchain-huggingface", "beautifulsoup4"]
+dependencies = [
+ "mcp>=1.7.1",
+ "mcp-use",
+ "langchain-openai",
+ "python-dotenv",
+ "aiohttp",
+ "langchain-huggingface",
+ "beautifulsoup4",
+ "ipykernel>=7.2.0",
+]
 [[project.authors]]
 name = "Jaerong Ahn"
 email = "jaerongahn@gmail.com"
