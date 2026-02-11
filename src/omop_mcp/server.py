@@ -130,29 +130,29 @@ async def find_omop_concept(
     )
 
     try:
-        concepts = await utils.search_athena_concept_async(keyword)
+        concepts = await utils.search_omophub_concepts_async(keyword, max_results)
     except Exception as e:
-        logging.error(f"Athena API call failed: {e}")
-        raise RuntimeError(f"Athena API is not accessible: {e}") from e
+        logging.error(f"OMOPHub API call failed: {e}")
+        raise RuntimeError(f"OMOPHub API is not accessible: {e}") from e
 
     if not concepts:
         return {
             "error": f"No results found for keyword '{keyword}'. The search term may not exist in the OMOP vocabulary.",
         }
 
-    # Return multiple candidates with all their metadata for LLM to evaluate
     candidates = []
-    for i, c in enumerate(concepts[:max_results]):
+    for c in concepts[:max_results]:
+        cid = c.get("concept_id", "")
         candidate = {
-            "concept_id": c.get("id", ""),
-            "code": c.get("code", ""),
-            "name": c.get("name", ""),
-            "class": c.get("className", ""),
-            "concept": c.get("standardConcept", ""),
-            "validity": c.get("invalidReason", c.get("validity", "")),
-            "domain": c.get("domain", c.get("domainId", "")),
-            "vocab": c.get("vocabulary", c.get("vocabularyId", "")),
-            "url": f"https://athena.ohdsi.org/search-terms/terms/{c.get('id', '')}",
+            "concept_id": cid,
+            "code": c.get("concept_code", ""),
+            "name": c.get("concept_name", ""),
+            "class": c.get("concept_class_id", ""),
+            "concept": c.get("standard_concept", ""),
+            "validity": c.get("invalid_reason", "Valid"),
+            "domain": c.get("domain_id", ""),
+            "vocab": c.get("vocabulary_id", ""),
+            "url": f"https://athena.ohdsi.org/search-terms/terms/{cid}",
         }
         candidates.append(candidate)
 
