@@ -130,10 +130,10 @@ async def find_omop_concept(
     )
 
     try:
-        concepts = await utils.search_omophub_concepts_async(keyword, max_results)
+        concepts = await utils.search_concepts_async(keyword, max_results)
     except Exception as e:
-        logging.error(f"OMOPHub API call failed: {e}")
-        raise RuntimeError(f"OMOPHub API is not accessible: {e}") from e
+        logging.error(f"API call failed: {e}")
+        raise RuntimeError(f"OMOP vocabulary API is not accessible: {e}") from e
 
     if not concepts:
         return {

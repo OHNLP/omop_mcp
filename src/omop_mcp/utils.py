@@ -11,11 +11,11 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-OMOPHUB_BASE_URL = os.getenv("OMOPHUB_BASE_URL", "https://api.omophub.com/v1")
-OMOPHUB_API_KEY = os.getenv("OMOPHUB_API_KEY", "")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.omophub.com/v1")
+API_KEY = os.getenv("OMOPHUB_API_KEY", "")
 
-OMOPHUB_HEADERS = {
-    "Authorization": f"Bearer {OMOPHUB_API_KEY}",
+API_HEADERS = {
+    "Authorization": f"Bearer {API_KEY}",
     "Content-Type": "application/json",
 }
 
@@ -29,11 +29,11 @@ async def _suggest_concepts_async(
     session: aiohttp.ClientSession, keyword: str, limit: int = 10
 ) -> list:
     """suggest_concepts endpoint (capped at ~10 by server)."""
-    url = f"{OMOPHUB_BASE_URL}/concepts/suggest"
+    url = f"{API_BASE_URL}/concepts/suggest"
     params = {"query": keyword, "limit": limit}
     async with session.get(
         url,
-        headers=OMOPHUB_HEADERS,
+        headers=API_HEADERS,
         params=params,
         timeout=aiohttp.ClientTimeout(total=15),
     ) as resp:
@@ -45,11 +45,11 @@ async def _basic_search_async(
     session: aiohttp.ClientSession, keyword: str, page_size: int = 20
 ) -> list:
     """basic_search endpoint (supports larger page_size)."""
-    url = f"{OMOPHUB_BASE_URL}/search/concepts"
+    url = f"{API_BASE_URL}/search/concepts"
     params = {"query": keyword, "page_size": page_size}
     async with session.get(
         url,
-        headers=OMOPHUB_HEADERS,
+        headers=API_HEADERS,
         params=params,
         timeout=aiohttp.ClientTimeout(total=15),
     ) as resp:
@@ -79,21 +79,21 @@ def _merge_and_dedup(primary: list, secondary: list) -> list:
 # ---------------------------------------------------------------------------
 
 
-def search_omophub_concepts(keyword: str, max_results: int = 20) -> list:
-    """Search OMOP concepts via OMOPHub suggest_concepts API (sync)."""
-    url = f"{OMOPHUB_BASE_URL}/concepts/suggest"
+def search_concepts(keyword: str, max_results: int = 20) -> list:
+    """Search OMOP concepts via suggest_concepts API (sync)."""
+    url = f"{API_BASE_URL}/concepts/suggest"
     params = {"query": keyword, "limit": max_results}
 
     try:
-        response = requests.get(url, headers=OMOPHUB_HEADERS, params=params, timeout=15)
+        response = requests.get(url, headers=API_HEADERS, params=params, timeout=15)
         response.raise_for_status()
         return response.json().get("data", [])
     except requests.exceptions.RequestException as e:
-        logger.error(f"OMOPHub suggest API error: {e}")
+        logger.error(f"Suggest API error: {e}")
         return []
 
 
-async def search_omophub_concepts_async(keyword: str, max_results: int = 20) -> list:
+async def search_concepts_async(keyword: str, max_results: int = 20) -> list:
     """Combined search: suggest_concepts + basic_search in parallel, merged & deduped.
 
     suggest_concepts returns ~10 high-quality standard/ingredient-level concepts.
@@ -115,7 +115,7 @@ async def search_omophub_concepts_async(keyword: str, max_results: int = 20) -> 
             basic_results, Exception
         ):
             raise RuntimeError(
-                f"Both OMOPHub APIs failed — suggest: {suggest_results}, basic: {basic_results}"
+                f"Both APIs failed — suggest: {suggest_results}, basic: {basic_results}"
             ) from suggest_results
 
         if isinstance(suggest_results, Exception):
@@ -134,10 +134,10 @@ async def search_omophub_concepts_async(keyword: str, max_results: int = 20) -> 
 
 
 def get_concept_by_id(concept_id: int | str) -> dict | None:
-    """Get a single concept by ID via OMOPHub API."""
-    url = f"{OMOPHUB_BASE_URL}/concepts/{concept_id}"
+    """Get a single concept by ID."""
+    url = f"{API_BASE_URL}/concepts/{concept_id}"
     try:
-        response = requests.get(url, headers=OMOPHUB_HEADERS, timeout=10)
+        response = requests.get(url, headers=API_HEADERS, timeout=10)
         response.raise_for_status()
         return response.json().get("data")
     except requests.exceptions.RequestException:
@@ -145,7 +145,7 @@ def get_concept_by_id(concept_id: int | str) -> dict | None:
 
 
 def concept_id_exists(concept_id: int | str) -> bool:
-    """Check if a concept exists in OMOPHub."""
+    """Check if a concept exists."""
     return get_concept_by_id(concept_id) is not None
 
 
