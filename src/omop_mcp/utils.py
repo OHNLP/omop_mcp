@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import os
 import re
 
@@ -6,6 +8,8 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 OMOPHUB_BASE_URL = os.getenv("OMOPHUB_BASE_URL", "https://api.omophub.com/v1")
 OMOPHUB_API_KEY = os.getenv("OMOPHUB_API_KEY", "")
@@ -16,6 +20,65 @@ OMOPHUB_HEADERS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Low-level API helpers
+# ---------------------------------------------------------------------------
+
+
+async def _suggest_concepts_async(
+    session: aiohttp.ClientSession, keyword: str, limit: int = 10
+) -> list:
+    """suggest_concepts endpoint (capped at ~10 by server)."""
+    url = f"{OMOPHUB_BASE_URL}/concepts/suggest"
+    params = {"query": keyword, "limit": limit}
+    async with session.get(
+        url,
+        headers=OMOPHUB_HEADERS,
+        params=params,
+        timeout=aiohttp.ClientTimeout(total=15),
+    ) as resp:
+        resp.raise_for_status()
+        return (await resp.json()).get("data", [])
+
+
+async def _basic_search_async(
+    session: aiohttp.ClientSession, keyword: str, page_size: int = 20
+) -> list:
+    """basic_search endpoint (supports larger page_size)."""
+    url = f"{OMOPHUB_BASE_URL}/search/concepts"
+    params = {"query": keyword, "page_size": page_size}
+    async with session.get(
+        url,
+        headers=OMOPHUB_HEADERS,
+        params=params,
+        timeout=aiohttp.ClientTimeout(total=15),
+    ) as resp:
+        resp.raise_for_status()
+        return (await resp.json()).get("data", [])
+
+
+def _merge_and_dedup(primary: list, secondary: list) -> list:
+    """Merge two concept lists, deduplicating by concept_id. Primary results come first."""
+    seen = set()
+    merged = []
+    for c in primary:
+        cid = c.get("concept_id")
+        if cid not in seen:
+            seen.add(cid)
+            merged.append(c)
+    for c in secondary:
+        cid = c.get("concept_id")
+        if cid not in seen:
+            seen.add(cid)
+            merged.append(c)
+    return merged
+
+
+# ---------------------------------------------------------------------------
+# Public search functions
+# ---------------------------------------------------------------------------
+
+
 def search_omophub_concepts(keyword: str, max_results: int = 20) -> list:
     """Search OMOP concepts via OMOPHub suggest_concepts API (sync)."""
     url = f"{OMOPHUB_BASE_URL}/concepts/suggest"
@@ -24,37 +87,50 @@ def search_omophub_concepts(keyword: str, max_results: int = 20) -> list:
     try:
         response = requests.get(url, headers=OMOPHUB_HEADERS, params=params, timeout=15)
         response.raise_for_status()
-        data = response.json()
-        return data.get("data", [])
+        return response.json().get("data", [])
     except requests.exceptions.RequestException as e:
-        print(f"OMOPHub API error: {e}")
+        logger.error(f"OMOPHub suggest API error: {e}")
         return []
 
 
 async def search_omophub_concepts_async(keyword: str, max_results: int = 20) -> list:
-    """Search OMOP concepts via OMOPHub suggest_concepts API (async).
+    """Combined search: suggest_concepts + basic_search in parallel, merged & deduped.
 
-    Raises RuntimeError for API failures.
-    Returns empty list for successful calls with no results.
+    suggest_concepts returns ~10 high-quality standard/ingredient-level concepts.
+    basic_search returns up to 20 broader product-level concepts.
+    Results are merged with suggest_concepts first (higher relevance).
+
+    Raises RuntimeError if both APIs fail.
     """
-    url = f"{OMOPHUB_BASE_URL}/concepts/suggest"
-    params = {"query": keyword, "limit": max_results}
+    basic_page_size = max(max_results - 10, 10)
 
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(
-                url,
-                headers=OMOPHUB_HEADERS,
-                params=params,
-                timeout=aiohttp.ClientTimeout(total=15),
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
-                return data.get("data", [])
-        except aiohttp.ClientError as e:
-            raise RuntimeError(f"OMOPHub API request failed: {e}") from e
-        except Exception as e:
-            raise RuntimeError(f"Unexpected error calling OMOPHub API: {e}") from e
+        suggest_task = _suggest_concepts_async(session, keyword, limit=10)
+        basic_task = _basic_search_async(session, keyword, page_size=basic_page_size)
+
+        results = await asyncio.gather(suggest_task, basic_task, return_exceptions=True)
+        suggest_results, basic_results = results
+
+        if isinstance(suggest_results, Exception) and isinstance(
+            basic_results, Exception
+        ):
+            raise RuntimeError(
+                f"Both OMOPHub APIs failed — suggest: {suggest_results}, basic: {basic_results}"
+            ) from suggest_results
+
+        if isinstance(suggest_results, Exception):
+            logger.warning(
+                f"suggest_concepts failed, using basic_search only: {suggest_results}"
+            )
+            suggest_results = []
+        if isinstance(basic_results, Exception):
+            logger.warning(
+                f"basic_search failed, using suggest_concepts only: {basic_results}"
+            )
+            basic_results = []
+
+        merged = _merge_and_dedup(suggest_results, basic_results)
+        return merged[:max_results]
 
 
 def get_concept_by_id(concept_id: int | str) -> dict | None:

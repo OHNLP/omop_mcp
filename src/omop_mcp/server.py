@@ -143,13 +143,14 @@ async def find_omop_concept(
     candidates = []
     for c in concepts[:max_results]:
         cid = c.get("concept_id", "")
+        validity = c.get("invalid_reason")
         candidate = {
             "concept_id": cid,
             "code": c.get("concept_code", ""),
             "name": c.get("concept_name", ""),
             "class": c.get("concept_class_id", ""),
             "concept": c.get("standard_concept", ""),
-            "validity": c.get("invalid_reason", "Valid"),
+            "validity": "Valid" if validity is None else validity,
             "domain": c.get("domain_id", ""),
             "vocab": c.get("vocabulary_id", ""),
             "url": f"https://athena.ohdsi.org/search-terms/terms/{cid}",
