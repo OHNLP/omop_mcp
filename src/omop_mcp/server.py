@@ -3,17 +3,17 @@ import io
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-from bs4 import BeautifulSoup
-
-logging.basicConfig(level=logging.INFO)
 import aiohttp
 import mcp.types as types
+from bs4 import BeautifulSoup
 from mcp.server.fastmcp import FastMCP
 
 from omop_mcp import utils
 from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
+
+logging.basicConfig(level=logging.INFO)
 
 BASE_DIR = Path(__file__).parent
 DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
@@ -27,7 +27,7 @@ mcp = FastMCP(name="omop_concept_mapper")
 
 
 @mcp.resource("omop://tables")
-async def list_omop_tables() -> Dict[str, List[str]]:
+async def list_omop_tables() -> dict[str, list[str]]:
     """List all OMOP CDM tables and their concept ID fields."""
     return OMOP_CDM
 
@@ -64,7 +64,7 @@ async def omop_documentation() -> str:
 
 
 @mcp.resource("omop://preferred_vocabularies")
-async def get_vocabulary_preference() -> Dict[str, List[str]]:
+async def get_vocabulary_preference() -> dict[str, list[str]]:
     """Preferred vocabulary for each OMOP domain in the order of preference."""
     return {
         "measurement": ["LOINC", "SNOMED"],
@@ -111,7 +111,7 @@ async def map_clinical_concept() -> types.GetPromptResult:
 @mcp.tool()
 async def find_omop_concept(
     keyword: str, omop_table: str, omop_field: str, max_results: int = 20
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Find OMOP concepts for a given keyword, table, and field.
     Returns multiple candidates for LLM to choose from based on context.
