@@ -18,35 +18,53 @@ MAX_STEPS = 5  # maximum number of steps for the agent
 
 def get_agent(
     llm_provider: Literal["azure_openai", "openai"] = "azure_openai",
+    llm=None,
+    client=None,
 ) -> MCPAgent:
-    config_dir = os.path.dirname(__file__)
-    config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
-    client = MCPClient.from_config_file(config_path)
+    if client is None:
+        config_dir = os.path.dirname(__file__)
+        config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
+        client = MCPClient.from_config_file(config_path)
 
-    if llm_provider == "azure_openai":
-        llm = AzureChatOpenAI(
-            azure_deployment=os.getenv("MODEL_NAME"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_API_VERSION"),
-            temperature=0,
-            seed=42,
-        )
-    elif llm_provider == "openai":
-        llm = ChatOpenAI(model="gpt-4o", temperature=0)
-    else:
-        raise ValueError(
-            f"Unsupported llm_provider: {llm_provider}. "
-            "Valid options are 'azure_openai' or 'openai'."
-        )
+    if llm is None:
+        if llm_provider == "azure_openai":
+            llm = AzureChatOpenAI(
+                azure_deployment=os.getenv("MODEL_NAME"),
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                api_version=os.getenv("AZURE_API_VERSION"),
+                temperature=0,
+                seed=42,
+            )
+        elif llm_provider == "openai":
+            # Allow model override via env var, default to gpt-4o
+            model_name = os.getenv("MODEL_NAME", "gpt-4o")
+            llm = ChatOpenAI(model=model_name, temperature=0)
+        elif llm_provider == "anthropic":
+            from langchain_anthropic import ChatAnthropic
+
+            model_name = os.getenv("MODEL_NAME", "claude-sonnet-4-20250514")
+            llm = ChatAnthropic(model=model_name, temperature=0)
+        elif llm_provider == "gemini":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+
+            model_name = os.getenv("MODEL_NAME", "gemini-2.5-flash")
+            llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+        else:
+            raise ValueError(
+                f"Unsupported or unconfigured llm_provider: {llm_provider}. "
+                "Pass an initialized 'llm' object or use one of: azure_openai, openai, anthropic, gemini."
+            )
 
     return MCPAgent(llm=llm, client=client, max_steps=MAX_STEPS)
 
 
-async def run_agent(user_prompt: str, llm_provider: str = "azure_openai") -> dict:
+async def run_agent(
+    user_prompt: str, llm_provider: str = "azure_openai", llm=None, client=None
+) -> dict:
     start_time = time.time()
 
-    agent = get_agent(llm_provider)
+    agent = get_agent(llm_provider, llm=llm, client=client)
 
     # Step 1: Get LLM reasoning about keyword interpretation and extract components
     reasoning_prompt = f"""

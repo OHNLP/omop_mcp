@@ -1,4 +1,6 @@
 from . import server
+from .client import OMOPHubClient
+from .service import MCPAgentService
 
 
 def main():
@@ -6,4 +8,4 @@ def main():
     server.main()
 
 
-__all__ = ["main", "server"]
+__all__ = ["main", "server", "OMOPHubClient", "MCPAgentService"]
