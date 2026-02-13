@@ -190,7 +190,7 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
     output = io.StringIO()
     with open(csv_path, newline="", encoding="utf-8") as infile:
         reader = csv.DictReader(infile)
-        fieldnames = reader.fieldnames + [
+        extra_cols = [
             "concept_id",
             "code",
             "name",
@@ -202,6 +202,7 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             "url",
             "reason",
         ]
+        fieldnames = list(reader.fieldnames or []) + extra_cols
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
         for row in reader:
@@ -209,8 +210,16 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             omop_field = row.get("omop_field", "")
             omop_table = row.get("omop_table", "")
             result = await find_omop_concept(keyword, omop_table, omop_field)
-            # Merge result into row
-            row.update(result)
+
+            # Extract the top candidate's flat fields (or empty on error)
+            candidates = result.get("candidates", [])
+            if candidates:
+                top = candidates[0]
+                for col in extra_cols:
+                    row[col] = top.get(col, "")
+            else:
+                for col in extra_cols:
+                    row[col] = result.get("error", "")
             writer.writerow(row)
     return output.getvalue()
 
