@@ -1,7 +1,7 @@
 MCP_DOC_INSTRUCTION = """
 When selecting the best OMOP concept and vocabulary, ALWAYS check the omop://documentation resource first for official OMOP CDM v5.4 vocabulary rules and mapping guidelines.
 
-Prefer concepts that are marked as 'Standard' and 'Valid'. When selecting the best OMOP concept and vocabulary, 
+Prefer concepts that are marked as 'Standard' and 'Valid'. When selecting the best OMOP concept and vocabulary, always check the preferred vocabulary order for the relevant domain.
 
 **IMPORTANT: Before making any vocabulary decisions, access omop://documentation and omop://preferred_vocabularies to see the current guidelines and preferences.**
 
