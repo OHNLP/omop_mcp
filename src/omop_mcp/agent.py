@@ -5,7 +5,6 @@ from typing import Literal
 
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from mcp_use import MCPAgent, MCPClient
 
 from omop_mcp import utils
@@ -17,44 +16,28 @@ MAX_STEPS = 5  # maximum number of steps for the agent
 
 
 def get_agent(
-    llm_provider: Literal["azure_openai", "openai"] = "azure_openai",
+    llm_provider: Literal[
+        "azure_openai", "openai", "anthropic", "gemini", "ollama"
+    ] = "azure_openai",
     llm=None,
     client=None,
 ) -> MCPAgent:
     if client is None:
-        config_dir = os.path.dirname(__file__)
-        config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
-        client = MCPClient.from_config_file(config_path)
+        # Use simple relative path or environment variable for config
+        # Assuming we are running from src/omop_mcp usually
+        config_path = os.getenv("MCP_CONFIG_PATH")
+        if not config_path:
+            # Fallback to looking relative to this file
+            config_dir = os.path.dirname(__file__)
+            config_path = os.path.join(config_dir, "../../omop_mcp_config.json")
+
+        if os.path.exists(config_path):
+            client = MCPClient.from_config_file(config_path)
+        else:
+            pass
 
     if llm is None:
-        if llm_provider == "azure_openai":
-            llm = AzureChatOpenAI(
-                azure_deployment=os.getenv("MODEL_NAME"),
-                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-                api_version=os.getenv("AZURE_API_VERSION"),
-                temperature=0,
-                seed=42,
-            )
-        elif llm_provider == "openai":
-            # Allow model override via env var, default to gpt-4o
-            model_name = os.getenv("MODEL_NAME", "gpt-4o")
-            llm = ChatOpenAI(model=model_name, temperature=0)
-        elif llm_provider == "anthropic":
-            from langchain_anthropic import ChatAnthropic
-
-            model_name = os.getenv("MODEL_NAME", "claude-sonnet-4-20250514")
-            llm = ChatAnthropic(model=model_name, temperature=0)
-        elif llm_provider == "gemini":
-            from langchain_google_genai import ChatGoogleGenerativeAI
-
-            model_name = os.getenv("MODEL_NAME", "gemini-2.5-flash")
-            llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
-        else:
-            raise ValueError(
-                f"Unsupported or unconfigured llm_provider: {llm_provider}. "
-                "Pass an initialized 'llm' object or use one of: azure_openai, openai, anthropic, gemini."
-            )
+        llm = utils.get_llm(provider=llm_provider)
 
     return MCPAgent(llm=llm, client=client, max_steps=MAX_STEPS)
 
@@ -185,7 +168,10 @@ After reviewing the candidates, provide your response in the exact format shown 
 
 
 async def run_llm_no_mcp(
-    prompt: str, llm_provider: Literal["azure_openai", "openai"] = "azure_openai"
+    prompt: str,
+    llm_provider: Literal[
+        "azure_openai", "openai", "anthropic", "gemini", "ollama"
+    ] = "azure_openai",
 ):
     """
     Calls the LLM API directly with the provided prompt,
@@ -193,22 +179,7 @@ async def run_llm_no_mcp(
     """
     load_dotenv()
 
-    if llm_provider == "azure_openai":
-        llm = AzureChatOpenAI(
-            azure_deployment=os.getenv("MODEL_NAME"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_API_VERSION"),
-            temperature=0,
-            seed=42,
-        )
-    elif llm_provider == "openai":
-        llm = ChatOpenAI(model="gpt-4o", temperature=0, seed=42)
-    else:
-        raise ValueError(
-            f"Unsupported llm_provider: {llm_provider}. "
-            "Valid options are 'azure_openai' or 'openai'."
-        )
+    llm = utils.get_llm(provider=llm_provider, seed=42)
 
     messages = [
         SystemMessage(content=MCP_DOC_INSTRUCTION),

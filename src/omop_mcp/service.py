@@ -14,21 +14,6 @@ from mcp_use import MCPClient
 from omop_mcp import agent as omop_agent
 from omop_mcp import utils as omop_utils
 
-try:
-    from langchain_openai import AzureChatOpenAI, ChatOpenAI
-except ImportError:
-    pass
-
-try:
-    from langchain_anthropic import ChatAnthropic
-except ImportError:
-    pass
-
-try:
-    from langchain_google_genai import ChatGoogleGenerativeAI
-except ImportError:
-    pass
-
 
 class MCPAgentService:
     def __init__(
@@ -82,59 +67,14 @@ class MCPAgentService:
 
     def _get_llm(self):
         """
-        Initialize the LangChain LLM object based on provider settings.
+        Initialize the LangChain LLM object using centralized utils.
         """
-        # Set API keys in env if provided, as some libraries prefer env vars
-        if self.llm_api_key:
-            if self.llm_provider == "openai":
-                os.environ["OPENAI_API_KEY"] = self.llm_api_key
-            elif self.llm_provider == "azure":
-                os.environ["AZURE_OPENAI_API_KEY"] = self.llm_api_key
-            elif self.llm_provider == "anthropic":
-                os.environ["ANTHROPIC_API_KEY"] = self.llm_api_key
-            elif self.llm_provider == "gemini":
-                os.environ["GOOGLE_API_KEY"] = self.llm_api_key
-
-        if self.llm_provider == "azure":
-            return AzureChatOpenAI(
-                azure_deployment=self.llm_model or os.getenv("MODEL_NAME", "gpt-4o"),
-                azure_endpoint=self.llm_endpoint
-                or os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-                api_key=self.llm_api_key or os.getenv("AZURE_OPENAI_API_KEY", ""),
-                api_version=os.getenv("AZURE_API_VERSION", "2024-02-15-preview"),
-                temperature=0,
-            )
-        elif self.llm_provider == "openai":
-            return ChatOpenAI(
-                model=self.llm_model or "gpt-4o",
-                api_key=self.llm_api_key or os.getenv("OPENAI_API_KEY", ""),
-                temperature=0,
-            )
-        elif self.llm_provider == "anthropic":
-            return ChatAnthropic(
-                model=self.llm_model or "claude-sonnet-4-20250514",
-                api_key=self.llm_api_key or os.getenv("ANTHROPIC_API_KEY", ""),
-                temperature=0,
-            )
-        elif self.llm_provider == "gemini":
-            return ChatGoogleGenerativeAI(
-                model=self.llm_model or "gemini-2.5-flash",
-                api_key=self.llm_api_key or os.getenv("GOOGLE_API_KEY", ""),
-                temperature=0,
-            )
-        elif self.llm_provider == "ollama":
-            base = (self.llm_endpoint or "http://localhost:11434").rstrip("/")
-            return ChatOpenAI(
-                model=self.llm_model or "llama3",
-                base_url=f"{base}/v1",
-                api_key="ollama",
-                temperature=0,
-            )
-        else:
-            raise ValueError(
-                f"Unsupported llm_provider: '{self.llm_provider}'. "
-                "Use one of: azure, openai, anthropic, gemini, ollama."
-            )
+        return omop_utils.get_llm(
+            provider=self.llm_provider,
+            model=self.llm_model,
+            api_key=self.llm_api_key,
+            endpoint=self.llm_endpoint,
+        )
 
     async def map_concept(
         self, user_message: str, context: dict[str, str] | None = None

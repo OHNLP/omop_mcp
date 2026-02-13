@@ -2,22 +2,124 @@ import asyncio
 import logging
 import os
 import re
+from typing import Literal
 
 import aiohttp
 import requests
 from dotenv import load_dotenv
+
+try:
+    from langchain_openai import AzureChatOpenAI, ChatOpenAI
+except ImportError:
+    AzureChatOpenAI = None
+    ChatOpenAI = None
+
+try:
+    from langchain_anthropic import ChatAnthropic
+except ImportError:
+    ChatAnthropic = None
+
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+except ImportError:
+    ChatGoogleGenerativeAI = None
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.omophub.com/v1")
-API_KEY = os.getenv("OMOPHUB_API_KEY", "")
 
-API_HEADERS = {
-    "Authorization": f"Bearer {API_KEY}",
-    "Content-Type": "application/json",
-}
+
+def get_api_headers() -> dict:
+    """
+    Get API headers.
+    """
+    api_key = os.getenv("OMOPHUB_API_KEY", "")
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+
+def get_llm(
+    provider: Literal[
+        "azure_openai", "openai", "anthropic", "gemini", "ollama"
+    ] = "azure_openai",
+    model: str | None = None,
+    api_key: str | None = None,
+    endpoint: str | None = None,
+    temperature: float = 0,
+    **kwargs,
+):
+    """
+    Centralized factory for creating LLM instances.
+    """
+    # Azure OpenAI
+    if provider == "azure_openai":
+        if not AzureChatOpenAI:
+            raise ImportError("langchain-openai is not installed.")
+        return AzureChatOpenAI(
+            azure_deployment=model or os.getenv("MODEL_NAME", "gpt-4o"),
+            azure_endpoint=endpoint or os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+            api_key=api_key or os.getenv("AZURE_OPENAI_API_KEY", ""),
+            api_version=os.getenv("AZURE_API_VERSION", "2024-02-15-preview"),
+            temperature=temperature,
+            **kwargs,
+        )
+
+    # OpenAI
+    elif provider == "openai":
+        if not ChatOpenAI:
+            raise ImportError("langchain-openai is not installed.")
+        return ChatOpenAI(
+            model=model or os.getenv("MODEL_NAME", "gpt-4o"),
+            api_key=api_key or os.getenv("OPENAI_API_KEY", ""),
+            temperature=temperature,
+            **kwargs,
+        )
+
+    # Anthropic
+    elif provider == "anthropic":
+        if not ChatAnthropic:
+            raise ImportError("langchain-anthropic is not installed.")
+        return ChatAnthropic(
+            model=model or os.getenv("MODEL_NAME", "claude-sonnet-4-20250514"),
+            api_key=api_key or os.getenv("ANTHROPIC_API_KEY", ""),
+            temperature=temperature,
+            **kwargs,
+        )
+
+    # Gemini
+    elif provider == "gemini":
+        if not ChatGoogleGenerativeAI:
+            raise ImportError("langchain-google-genai is not installed.")
+        return ChatGoogleGenerativeAI(
+            model=model or os.getenv("MODEL_NAME", "gemini-2.5-flash"),
+            api_key=api_key or os.getenv("GOOGLE_API_KEY", ""),
+            temperature=temperature,
+            **kwargs,
+        )
+
+    # Ollama
+    elif provider == "ollama":
+        # Ollama typically uses ChatOpenAI client with a different base_url
+        if not ChatOpenAI:
+            raise ImportError("langchain-openai is not installed.")
+        base = (endpoint or "http://localhost:11434").rstrip("/")
+        return ChatOpenAI(
+            model=model or "llama3",
+            base_url=f"{base}/v1",
+            api_key="ollama",  # dummy key required
+            temperature=temperature,
+            **kwargs,
+        )
+
+    else:
+        raise ValueError(
+            f"Unsupported llm_provider: '{provider}'. "
+            "Use one of: azure_openai, openai, anthropic, gemini, ollama."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -33,7 +135,7 @@ async def _suggest_concepts_async(
     params = {"query": keyword, "limit": limit}
     async with session.get(
         url,
-        headers=API_HEADERS,
+        headers=get_api_headers(),
         params=params,
         timeout=aiohttp.ClientTimeout(total=15),
     ) as resp:
@@ -49,7 +151,7 @@ async def _basic_search_async(
     params = {"query": keyword, "page_size": page_size}
     async with session.get(
         url,
-        headers=API_HEADERS,
+        headers=get_api_headers(),
         params=params,
         timeout=aiohttp.ClientTimeout(total=15),
     ) as resp:
@@ -85,7 +187,9 @@ def search_concepts(keyword: str, max_results: int = 20) -> list:
     params = {"query": keyword, "limit": max_results}
 
     try:
-        response = requests.get(url, headers=API_HEADERS, params=params, timeout=15)
+        response = requests.get(
+            url, headers=get_api_headers(), params=params, timeout=15
+        )
         response.raise_for_status()
         return response.json().get("data", [])
     except requests.exceptions.RequestException as e:
@@ -137,7 +241,7 @@ def get_concept_by_id(concept_id: int | str) -> dict | None:
     """Get a single concept by ID."""
     url = f"{API_BASE_URL}/concepts/{concept_id}"
     try:
-        response = requests.get(url, headers=API_HEADERS, timeout=10)
+        response = requests.get(url, headers=get_api_headers(), timeout=10)
         response.raise_for_status()
         return response.json().get("data")
     except requests.exceptions.RequestException:
