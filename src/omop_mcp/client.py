@@ -11,38 +11,76 @@ import httpx
 class OMOPHubClient:
     """Client for OMOPHub API"""
 
-    def __init__(self, api_key: str, base_url: str = "https://api.omophub.com/v1"):
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = "https://api.omophub.com/v1",
+        client: httpx.AsyncClient | None = None,
+    ):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
+        self._client = client
+        self._own_client = False
+
+    async def __aenter__(self):
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=30.0)
+            self._own_client = True
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._own_client and self._client:
+            await self._client.aclose()
+
+    async def get_client(self) -> httpx.AsyncClient:
+        """Get or create the underlying httpx client."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=30.0)
+            self._own_client = True
+        return self._client
+
+    async def close(self):
+        """Close the client if we own it."""
+        if self._own_client and self._client:
+            await self._client.aclose()
 
     async def _request(
         self,
         method: str,
         path: str,
         *,
-        params: dict = None,
+        params: dict | None = None,
         timeout: float = 30.0,
         max_retries: int = 3,
     ) -> httpx.Response:
         """Make an API request with automatic retry on 429 rate limits."""
+        client = await self.get_client()
         response = None
         for attempt in range(max_retries):
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
                 response = await getattr(client, method)(
                     f"{self.base_url}{path}",
                     params=params,
                     headers=self.headers,
+                    timeout=timeout,
                 )
                 if response.status_code == 429:
                     wait = float(response.headers.get("Retry-After", 2**attempt))
                     await asyncio.sleep(min(wait, 10))
                     continue
                 return response
-        return response
+            except httpx.RequestError:
+                if attempt == max_retries - 1:
+                    raise
+
+        if response is not None:
+            return response
+        # Should be unreachable if max_retries > 0 and loop completes
+        raise httpx.RequestError("Max retries exceeded")
 
     async def search_concepts(
         self,

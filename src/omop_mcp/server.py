@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import aiohttp
+import httpx
 import mcp.types as types
 from bs4 import BeautifulSoup
 from mcp.server.fastmcp import FastMCP
@@ -36,10 +36,11 @@ async def list_omop_tables() -> dict[str, list[str]]:
 async def omop_documentation() -> str:
     """Fetch live OMOP CDM documentation including vocabulary rules."""
     url = "https://ohdsi.github.io/CommonDataModel/vocabulary.html"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status == 200:
-                html_content = await response.text()
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=30.0)
+            if response.status_code == 200:
+                html_content = response.text
                 soup = BeautifulSoup(html_content, "html.parser")
 
                 # Remove script and style elements
@@ -60,7 +61,12 @@ async def omop_documentation() -> str:
                         phrase.strip() for line in lines for phrase in line.split("  ")
                     )
                     clean_text = " ".join(chunk for chunk in chunks if chunk)
-    return clean_text
+                    return clean_text
+    except Exception as e:
+        logging.error(f"Failed to fetch OMOP documentation: {e}")
+        return f"Error fetching documentation: {str(e)}"
+
+    return "Documentation is currently unavailable."
 
 
 @mcp.resource("omop://preferred_vocabularies")

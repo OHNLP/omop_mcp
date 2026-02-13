@@ -4,8 +4,7 @@ import os
 import re
 from typing import Literal
 
-import aiohttp
-import requests
+import httpx
 from dotenv import load_dotenv
 
 try:
@@ -128,35 +127,35 @@ def get_llm(
 
 
 async def _suggest_concepts_async(
-    session: aiohttp.ClientSession, keyword: str, limit: int = 10
+    client: httpx.AsyncClient, keyword: str, limit: int = 10
 ) -> list:
     """suggest_concepts endpoint (capped at ~10 by server)."""
     url = f"{API_BASE_URL}/concepts/suggest"
     params = {"query": keyword, "limit": limit}
-    async with session.get(
+    response = await client.get(
         url,
         headers=get_api_headers(),
         params=params,
-        timeout=aiohttp.ClientTimeout(total=15),
-    ) as resp:
-        resp.raise_for_status()
-        return (await resp.json()).get("data", [])
+        timeout=15.0,
+    )
+    response.raise_for_status()
+    return response.json().get("data", [])
 
 
 async def _basic_search_async(
-    session: aiohttp.ClientSession, keyword: str, page_size: int = 20
+    client: httpx.AsyncClient, keyword: str, page_size: int = 20
 ) -> list:
     """basic_search endpoint (supports larger page_size)."""
     url = f"{API_BASE_URL}/search/concepts"
     params = {"query": keyword, "page_size": page_size}
-    async with session.get(
+    response = await client.get(
         url,
         headers=get_api_headers(),
         params=params,
-        timeout=aiohttp.ClientTimeout(total=15),
-    ) as resp:
-        resp.raise_for_status()
-        return (await resp.json()).get("data", [])
+        timeout=15.0,
+    )
+    response.raise_for_status()
+    return response.json().get("data", [])
 
 
 def _merge_and_dedup(primary: list, secondary: list) -> list:
@@ -187,12 +186,12 @@ def search_concepts(keyword: str, max_results: int = 20) -> list:
     params = {"query": keyword, "limit": max_results}
 
     try:
-        response = requests.get(
-            url, headers=get_api_headers(), params=params, timeout=15
+        response = httpx.get(
+            url, headers=get_api_headers(), params=params, timeout=15.0
         )
         response.raise_for_status()
         return response.json().get("data", [])
-    except requests.exceptions.RequestException as e:
+    except httpx.RequestError as e:
         logger.error(f"Suggest API error: {e}")
         return []
 
@@ -208,9 +207,9 @@ async def search_concepts_async(keyword: str, max_results: int = 20) -> list:
     """
     basic_page_size = max(max_results - 10, 10)
 
-    async with aiohttp.ClientSession() as session:
-        suggest_task = _suggest_concepts_async(session, keyword, limit=10)
-        basic_task = _basic_search_async(session, keyword, page_size=basic_page_size)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        suggest_task = _suggest_concepts_async(client, keyword, limit=10)
+        basic_task = _basic_search_async(client, keyword, page_size=basic_page_size)
 
         results = await asyncio.gather(suggest_task, basic_task, return_exceptions=True)
         suggest_results, basic_results = results
@@ -241,10 +240,10 @@ def get_concept_by_id(concept_id: int | str) -> dict | None:
     """Get a single concept by ID."""
     url = f"{API_BASE_URL}/concepts/{concept_id}"
     try:
-        response = requests.get(url, headers=get_api_headers(), timeout=10)
+        response = httpx.get(url, headers=get_api_headers(), timeout=10.0)
         response.raise_for_status()
         return response.json().get("data")
-    except requests.exceptions.RequestException:
+    except httpx.RequestError:
         return None
 
 
