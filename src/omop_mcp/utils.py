@@ -259,94 +259,50 @@ def get_concept_name(concept_id: int | str) -> str | None:
 
 
 def parse_agent_response(response):
-    def extract(patterns):
-        for pat in patterns:
+    _FIELDS = [
+        "concept_id",
+        "code",
+        "name",
+        "class",
+        "concept",
+        "validity",
+        "domain",
+        "vocab",
+        "url",
+        "reason",
+    ]
+    _ALIASES = {
+        "concept_id": ["CONCEPT_ID", "Concept ID"],
+        "code": ["CODE", "Code"],
+        "name": ["NAME", "Name"],
+        "class": ["CLASS", "Class"],
+        "concept": ["CONCEPT", "Concept"],
+        "validity": ["VALIDITY", "Validity"],
+        "domain": ["DOMAIN", "Domain"],
+        "vocab": ["VOCAB", "Vocabulary"],
+        "url": ["URL"],
+        "reason": ["REASON", "Reason"],
+    }
+
+    def _extract(field):
+        aliases = _ALIASES.get(field, [field.upper()])
+        for alias in aliases:
+            # Multi-line capture for the last field (reason)
+            if field == "reason":
+                pat = rf"(?:\*\*)?{re.escape(alias)}(?:\*\*)?:\s*([\s\S]+)"
+            else:
+                pat = rf"(?:\*\*)?{re.escape(alias)}(?:\*\*)?:\s*([^\n]+)"
             match = re.search(pat, response, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        # Fallback: bare Athena URL for the url field
+        if field == "url":
+            match = re.search(r"(https://athena\.ohdsi\.org[^\s\)]+)", response)
             if match:
                 return match.group(1).strip()
         return ""
 
-    return {
-        "concept_id": extract(
-            [
-                r"\*\*CONCEPT_ID\*\*:\s*([^\n]+)",
-                r"\*\*Concept ID\*\*:\s*([^\n]+)",
-                r"CONCEPT_ID:\s*([^\n]+)",
-                r"Concept ID:\s*([^\n]+)",
-            ]
-        ),
-        "code": extract(
-            [
-                r"\*\*CODE\*\*:\s*([^\n]+)",
-                r"\*\*Code\*\*:\s*([^\n]+)",
-                r"CODE:\s*([^\n]+)",
-                r"Code:\s*([^\n]+)",
-            ]
-        ),
-        "name": extract(
-            [
-                r"\*\*NAME\*\*:\s*([^\n]+)",
-                r"\*\*Name\*\*:\s*([^\n]+)",
-                r"NAME:\s*([^\n]+)",
-                r"Name:\s*([^\n]+)",
-            ]
-        ),
-        "class": extract(
-            [
-                r"\*\*CLASS\*\*:\s*([^\n]+)",
-                r"\*\*Class\*\*:\s*([^\n]+)",
-                r"CLASS:\s*([^\n]+)",
-                r"Class:\s*([^\n]+)",
-            ]
-        ),
-        "concept": extract(
-            [
-                r"\*\*CONCEPT\*\*:\s*([^\n]+)",
-                r"\*\*Concept\*\*:\s*([^\n]+)",
-                r"CONCEPT:\s*([^\n]+)",
-                r"Concept:\s*([^\n]+)",
-            ]
-        ),
-        "validity": extract(
-            [
-                r"\*\*VALIDITY\*\*:\s*([^\n]+)",
-                r"\*\*Validity\*\*:\s*([^\n]+)",
-                r"VALIDITY:\s*([^\n]+)",
-                r"Validity:\s*([^\n]+)",
-            ]
-        ),
-        "domain": extract(
-            [
-                r"\*\*DOMAIN\*\*:\s*([^\n]+)",
-                r"\*\*Domain\*\*:\s*([^\n]+)",
-                r"DOMAIN:\s*([^\n]+)",
-                r"Domain:\s*([^\n]+)",
-            ]
-        ),
-        "vocab": extract(
-            [
-                r"\*\*VOCAB\*\*:\s*([^\n]+)",
-                r"\*\*Vocabulary\*\*:\s*([^\n]+)",
-                r"VOCAB:\s*([^\n]+)",
-                r"Vocabulary:\s*([^\n]+)",
-            ]
-        ),
-        "url": extract(
-            [
-                r"\*\*URL\*\*:\s*([^\n]+)",
-                r"(https://athena\.ohdsi\.org[^\s\)]+)",
-                r"URL:\s*([^\n]+)",
-            ]
-        ),
-        "reason": extract(
-            [
-                r"\*\*REASON\*\*:\s*([^\n]+)",
-                r"\*\*Reason\*\*:\s*([^\n]+)",
-                r"REASON:\s*([^\n]+)",
-                r"Reason:\s*([^\n]+)",
-            ]
-        ),
-    }
+    return {f: _extract(f) for f in _FIELDS}
 
 
 def clean_url_formatting(response: str) -> str:

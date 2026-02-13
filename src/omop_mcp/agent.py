@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import time
 from typing import Literal
 
@@ -93,25 +94,28 @@ async def run_agent(
         else str(reasoning_result)
     )
 
-    # Parse the reasoning response
-    keyword = ""
-    omop_table = ""
-    omop_field = ""
-    inferred_keyword = ""
-    reasoning = ""
+    # Parse the reasoning response using regex (handles markdown bold, varied casing, etc.)
+    def _extract_field(text, field_name):
+        patterns = [
+            rf"\*\*{field_name}\*\*:\s*(.+)",
+            rf"{field_name}:\s*(.+)",
+        ]
+        for pat in patterns:
+            match = re.search(pat, text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return ""
 
-    for line in reasoning_response.split("\n"):
-        line = line.strip()
-        if line.startswith("KEYWORD:"):
-            keyword = line.replace("KEYWORD:", "").strip()
-        elif line.startswith("OMOP_TABLE:"):
-            omop_table = line.replace("OMOP_TABLE:", "").strip()
-        elif line.startswith("OMOP_FIELD:"):
-            omop_field = line.replace("OMOP_FIELD:", "").strip()
-        elif line.startswith("INFERRED_KEYWORD:"):
-            inferred_keyword = line.replace("INFERRED_KEYWORD:", "").strip()
-        elif line.startswith("REASONING:"):
-            reasoning = line.replace("REASONING:", "").strip()
+    keyword = _extract_field(reasoning_response, "KEYWORD")
+    omop_table = _extract_field(reasoning_response, "OMOP_TABLE")
+    omop_field = _extract_field(reasoning_response, "OMOP_FIELD")
+    inferred_keyword = _extract_field(reasoning_response, "INFERRED_KEYWORD")
+
+    # REASONING can be multi-line — capture everything after the label
+    reasoning_match = re.search(
+        r"(?:\*\*)?REASONING(?:\*\*)?:\s*([\s\S]+)", reasoning_response, re.IGNORECASE
+    )
+    reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
 
     # If parsing failed, use fallbacks
     if not keyword:
@@ -201,7 +205,7 @@ if __name__ == "__main__":
 
         # prompt = "Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table."
 
-        prompt = "Map `Mean Arterial Pressure (Invasive)` for `measurement_concept_id` in the measurement` table"
+        prompt = "Map `Mean Arterial Pressure (Invasive)` for `measurement_concept_id` in the `measurement` table"
 
         print("=" * 60)
         print("WITH MCP TOOLS:")
