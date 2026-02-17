@@ -16,7 +16,7 @@ scratch/
 .env
 
 # data
-data/
+/data/
 
 # config
 omop_mcp_config.json
