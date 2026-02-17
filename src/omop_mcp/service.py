@@ -12,6 +12,7 @@ from typing import Any, Literal
 from mcp_use import MCPClient
 
 from omop_mcp import agent as omop_agent
+from omop_mcp import config as omop_config
 from omop_mcp import utils as omop_utils
 
 
@@ -49,16 +50,7 @@ class MCPAgentService:
                         **{
                             k: v
                             for k, v in os.environ.items()
-                            if k
-                            in [
-                                "OPENAI_API_KEY",
-                                "ANTHROPIC_API_KEY",
-                                "AZURE_OPENAI_API_KEY",
-                                "OMOPHUB_API_KEY",
-                                "PATH",
-                                "SYSTEMROOT",
-                                "HOME",
-                            ]
+                            if k in omop_config.ENV_VARS
                         }
                     },
                 }
@@ -77,7 +69,10 @@ class MCPAgentService:
         )
 
     async def map_concept(
-        self, user_message: str, context: dict[str, str] | None = None
+        self,
+        user_message: str,
+        context: dict[str, str] | None = None,
+        history: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         """
         Orchestrate the mapping process:
@@ -112,7 +107,11 @@ class MCPAgentService:
 
             # Run the agent logic from the package, passing our custom components
             result = await omop_agent.run_agent(
-                prompt, llm_provider=self.llm_provider, llm=llm, client=client
+                prompt,
+                llm_provider=self.llm_provider,
+                llm=llm,
+                client=client,
+                history=history,
             )
 
             response_text = result.get("response", "")
@@ -122,26 +121,56 @@ class MCPAgentService:
 
             # Adapt to frontend format (generic structure)
             concepts = []
+            friendly_message = response_text  # fallback to raw
+            reasoning_text = None
+
             if parsed.get("concept_id"):
                 try:
                     cid = int(parsed.get("concept_id"))
                 except (ValueError, TypeError):
                     cid = 0
 
+                reason = parsed.get("reason", "")
                 concepts.append(
                     {
                         "concept_id": cid,
                         "concept_name": parsed.get("name"),
                         "vocabulary_id": parsed.get("vocab"),
                         "domain_id": parsed.get("domain"),
-                        "reasoning": parsed.get("reason"),
+                        "reasoning": reason,
                         "confidence": "high",
                     }
                 )
 
+                name = parsed.get("name", "")
+                vocab = parsed.get("vocab", "")
+                domain = parsed.get("domain", "")
+                concept_class = parsed.get("class", "")
+                code = parsed.get("code", "")
+                validity = parsed.get("validity", "")
+                concept_type = parsed.get("concept", "")
+                url = parsed.get("url", "")
+
+                friendly_message = (
+                    f"**{name}**\n\n"
+                    f"| Field | Value |\n"
+                    f"|-------|-------|\n"
+                    f"| Concept ID | {cid} |\n"
+                    f"| Code | {code} |\n"
+                    f"| Vocabulary | {vocab} |\n"
+                    f"| Domain | {domain} |\n"
+                    f"| Class | {concept_class} |\n"
+                    f"| Type | {concept_type} |\n"
+                    f"| Validity | {validity} |\n"
+                    f"| Athena | {url} |"
+                )
+
+                reasoning_text = reason
+
             processing_time = time.time() - start_time
             return {
-                "message": response_text,
+                "message": friendly_message,
+                "reasoning": reasoning_text,
                 "concepts": concepts,
                 "processing_time": processing_time,
                 "debug_info": result.get("debug_info"),

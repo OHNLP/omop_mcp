@@ -2,7 +2,6 @@ import asyncio
 import os
 import re
 import time
-from typing import Literal
 
 from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -13,13 +12,12 @@ from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
 
 load_dotenv()
 
-MAX_STEPS = 5  # maximum number of steps for the agent
+MAX_STEPS = 10
+RECURSION_LIMIT = 25
 
 
 def get_agent(
-    llm_provider: Literal[
-        "azure_openai", "openai", "anthropic", "gemini", "ollama"
-    ] = "azure_openai",
+    llm_provider: str = "azure_openai",
     llm=None,
     client=None,
 ) -> MCPAgent:
@@ -40,19 +38,37 @@ def get_agent(
     if llm is None:
         llm = utils.get_llm(provider=llm_provider)
 
-    return MCPAgent(llm=llm, client=client, max_steps=MAX_STEPS)
+    agent = MCPAgent(llm=llm, client=client, max_steps=MAX_STEPS)
+    agent.recursion_limit = RECURSION_LIMIT
+    return agent
 
 
 async def run_agent(
-    user_prompt: str, llm_provider: str = "azure_openai", llm=None, client=None
+    user_prompt: str,
+    llm_provider: str = "azure_openai",
+    llm=None,
+    client=None,
+    history: list[dict[str, str]] | None = None,
 ) -> dict:
     start_time = time.time()
 
     agent = get_agent(llm_provider, llm=llm, client=client)
 
-    # Step 1: Get LLM reasoning about keyword interpretation and extract components
-    reasoning_prompt = f"""
-    You are an OMOP concept mapping expert with deep clinical knowledge. Your task is to analyze this request and determine what the medical keyword actually means in clinical context, even if the user doesn't specify exact OMOP details.
+    history_context = ""
+    if history:
+        history_lines = []
+        for msg in history:
+            role = msg.get("role", "user").upper()
+            content = msg.get("content", "")
+            history_lines.append(f"{role}: {content}")
+        history_context = (
+            "Here is the conversation so far:\n"
+            + "\n".join(history_lines)
+            + "\n\nThe user's latest message is below. Use the conversation history "
+            "to understand context and follow-up intent.\n\n"
+        )
+
+    reasoning_prompt = f"""{history_context}You are an OMOP concept mapping expert with deep clinical knowledge. Your task is to analyze this request and determine what the medical keyword actually means in clinical context, even if the user doesn't specify exact OMOP details.
 
     User request: "{user_prompt}"
 
@@ -66,16 +82,16 @@ async def run_agent(
     - What OMOP table/field would be most appropriate if not specified?
 
     Examples of proper interpretation:
-    - "CP" in condition context → "chest pain" (not just "CP")
-    - "temp" in measurement context → "temperature" (not just "temp") 
-    - "BP" in measurement context → "blood pressure" (not just "BP")
-    - "MI" in condition context → "myocardial infarction" (not just "MI")
+    - "CP" in condition context -> "chest pain" (not just "CP")
+    - "temp" in measurement context -> "temperature" (not just "temp") 
+    - "BP" in measurement context -> "blood pressure" (not just "BP")
+    - "MI" in condition context -> "myocardial infarction" (not just "MI")
 
     **Handle natural language flexibly:**
-    - "Map chest pain" → infer condition_occurrence.condition_concept_id
-    - "Find concept for diabetes" → infer condition_occurrence.condition_concept_id
-    - "What's the OMOP code for aspirin?" → infer drug_exposure.drug_concept_id
-    - "Temperature measurement" → infer measurement.measurement_concept_id
+    - "Map chest pain" -> infer condition_occurrence.condition_concept_id
+    - "Find concept for diabetes" -> infer condition_occurrence.condition_concept_id
+    - "What's the OMOP code for aspirin?" -> infer drug_exposure.drug_concept_id
+    - "Temperature measurement" -> infer measurement.measurement_concept_id
 
     Output format:
     KEYWORD: [the main clinical term/keyword to map]
@@ -135,6 +151,12 @@ Based on your analysis, find concepts for `{inferred_keyword}` for `{omop_field}
 
 Your previous reasoning for this keyword was: {reasoning}
 
+**CRITICAL RULES:**
+1. Call `find_omop_concept` at most TWICE. One primary search, and optionally one refinement if the first results are clearly wrong domain/vocabulary.
+2. From the returned candidates, select the BEST match. Do NOT keep searching with more keyword variations.
+3. If none of the candidates are a perfect match, pick the closest one and explain why in REASON.
+4. After selecting your answer, immediately output the result in the required format below. Do NOT make any more tool calls.
+
 The tool will return multiple candidate concepts. You must:
 1. Review all candidates considering their Standard/Valid status, domain, vocabulary, and clinical appropriateness
 2. Select the MOST APPROPRIATE concept based on the context and any specific requirements mentioned
@@ -173,9 +195,7 @@ After reviewing the candidates, provide your response in the exact format shown 
 
 async def run_llm_no_mcp(
     prompt: str,
-    llm_provider: Literal[
-        "azure_openai", "openai", "anthropic", "gemini", "ollama"
-    ] = "azure_openai",
+    llm_provider: str = "azure_openai",
 ):
     """
     Calls the LLM API directly with the provided prompt,

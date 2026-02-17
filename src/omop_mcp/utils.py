@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import re
-from typing import Literal
 
 import httpx
 from dotenv import load_dotenv
@@ -42,9 +41,7 @@ def get_api_headers() -> dict:
 
 
 def get_llm(
-    provider: Literal[
-        "azure_openai", "openai", "anthropic", "gemini", "ollama"
-    ] = "azure_openai",
+    provider: str = "azure_openai",
     model: str | None = None,
     api_key: str | None = None,
     endpoint: str | None = None,
@@ -54,12 +51,42 @@ def get_llm(
     """
     Centralized factory for creating LLM instances.
     """
+    # Default models for each provider
+    provider_defaults = {
+        "azure_openai": "gpt-4o",
+        "openai": "gpt-4o",
+        "anthropic": "claude-3-5-sonnet-20240620",
+        "gemini": "gemini-2.0-flash",
+        "ollama": "llama3",
+        "openrouter": "google/gemma-3-27b-it:free",
+        "groq": "llama-3.3-70b-versatile",
+        "huggingface": "meta-llama/Meta-Llama-3-8B-Instruct",
+    }
+
+    # Use provider-specific model if provided,
+    # then fallback to global MODEL_NAME (but only if it seems appropriate for the provider)
+    # else use the provider default.
+    effective_model = model
+    if not effective_model:
+        global_model = os.getenv("MODEL_NAME")
+        if global_model:
+            # Heuristic: if global model is 'gpt-...' and we are not an OpenAI/Azure provider,
+            # use the provider default instead.
+            is_openai_model = "gpt" in global_model.lower()
+            non_openai_provider = provider not in ["openai", "azure_openai"]
+            if non_openai_provider and is_openai_model:
+                effective_model = provider_defaults.get(provider)
+            else:
+                effective_model = global_model
+        else:
+            effective_model = provider_defaults.get(provider)
+
     # Azure OpenAI
     if provider == "azure_openai":
         if not AzureChatOpenAI:
             raise ImportError("langchain-openai is not installed.")
         return AzureChatOpenAI(
-            azure_deployment=model or os.getenv("MODEL_NAME", "gpt-4o"),
+            azure_deployment=effective_model,
             azure_endpoint=endpoint or os.getenv("AZURE_OPENAI_ENDPOINT", ""),
             api_key=api_key or os.getenv("AZURE_OPENAI_API_KEY", ""),
             api_version=os.getenv("AZURE_API_VERSION", "2024-02-15-preview"),
@@ -72,7 +99,7 @@ def get_llm(
         if not ChatOpenAI:
             raise ImportError("langchain-openai is not installed.")
         return ChatOpenAI(
-            model=model or os.getenv("MODEL_NAME", "gpt-4o"),
+            model=effective_model,
             api_key=api_key or os.getenv("OPENAI_API_KEY", ""),
             temperature=temperature,
             **kwargs,
@@ -83,7 +110,7 @@ def get_llm(
         if not ChatAnthropic:
             raise ImportError("langchain-anthropic is not installed.")
         return ChatAnthropic(
-            model=model or os.getenv("MODEL_NAME", "claude-sonnet-4-20250514"),
+            model=effective_model,
             api_key=api_key or os.getenv("ANTHROPIC_API_KEY", ""),
             temperature=temperature,
             **kwargs,
@@ -94,7 +121,7 @@ def get_llm(
         if not ChatGoogleGenerativeAI:
             raise ImportError("langchain-google-genai is not installed.")
         return ChatGoogleGenerativeAI(
-            model=model or os.getenv("MODEL_NAME", "gemini-2.5-flash"),
+            model=effective_model,
             api_key=api_key or os.getenv("GOOGLE_API_KEY", ""),
             temperature=temperature,
             **kwargs,
@@ -102,23 +129,94 @@ def get_llm(
 
     # Ollama
     elif provider == "ollama":
-        # Ollama typically uses ChatOpenAI client with a different base_url
         if not ChatOpenAI:
             raise ImportError("langchain-openai is not installed.")
         base = (endpoint or "http://localhost:11434").rstrip("/")
         return ChatOpenAI(
-            model=model or "llama3",
+            model=effective_model,
             base_url=f"{base}/v1",
-            api_key="ollama",  # dummy key required
+            api_key="ollama",
             temperature=temperature,
             **kwargs,
         )
 
+    # OpenRouter
+    elif provider == "openrouter":
+        return _get_openrouter(effective_model, api_key, temperature, **kwargs)
+
+    # Groq
+    elif provider == "groq":
+        return _get_groq(effective_model, api_key, temperature, **kwargs)
+
+    # HuggingFace
+    elif provider == "huggingface":
+        return _get_huggingface(effective_model, api_key, temperature, **kwargs)
+
     else:
+        from omop_mcp.config import LLM_PROVIDERS
+
         raise ValueError(
             f"Unsupported llm_provider: '{provider}'. "
-            "Use one of: azure_openai, openai, anthropic, gemini, ollama."
+            f"Use one of: {', '.join(LLM_PROVIDERS)}."
         )
+
+
+def _get_openrouter(
+    model: str | None, api_key: str | None, temperature: float, **kwargs
+):
+    if not ChatOpenAI:
+        raise ImportError("langchain-openai is not installed.")
+
+    return ChatOpenAI(
+        model=model or "google/gemma-3-27b-it:free",
+        api_key=api_key or os.getenv("OPENROUTER_API_KEY", ""),
+        base_url="https://openrouter.ai/api/v1",
+        temperature=temperature,
+        max_tokens=kwargs.pop("max_tokens", 4000),
+        **kwargs,
+    )
+
+
+def _get_groq(model: str | None, api_key: str | None, temperature: float, **kwargs):
+    if not ChatOpenAI:
+        raise ImportError("langchain-openai is not installed.")
+
+    return ChatOpenAI(
+        model=model,
+        api_key=api_key or os.getenv("GROQ_API_KEY", ""),
+        base_url="https://api.groq.com/openai/v1",
+        temperature=temperature,
+        max_tokens=kwargs.pop("max_tokens", 4000),
+        **kwargs,
+    )
+
+
+def _get_huggingface(
+    model: str | None, api_key: str | None, temperature: float, **kwargs
+):
+    # Try importing from new package first, then community
+    try:
+        from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+    except ImportError:
+        try:
+            from langchain_community.llms import HuggingFaceEndpoint
+
+            ChatHuggingFace = None
+        except ImportError:
+            raise ImportError(
+                "langchain-huggingface or langchain-community is not installed."
+            )
+
+    llm = HuggingFaceEndpoint(
+        repo_id=model,
+        huggingfacehub_api_token=api_key or os.getenv("HUGGINGFACEHUB_API_TOKEN", ""),
+        temperature=temperature,
+        **kwargs,
+    )
+
+    if ChatHuggingFace:
+        return ChatHuggingFace(llm=llm)
+    return llm
 
 
 # ---------------------------------------------------------------------------
