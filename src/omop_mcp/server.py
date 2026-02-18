@@ -2,6 +2,7 @@ import csv
 import io
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,10 @@ from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
 logging.basicConfig(level=logging.INFO)
 
 BASE_DIR = Path(__file__).parent
-DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
+# Allow environment variable override for data file path
+DATA_FILE = Path(
+    os.getenv("OMOP_DATA_FILE", str(BASE_DIR / "data" / "omop_concept_id_fields.json"))
+)
 
 # DEBUG: Print directory contents to debug Railway deployment issues
 try:
