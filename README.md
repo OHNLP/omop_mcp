@@ -3,7 +3,15 @@
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 [![arXiv](https://img.shields.io/badge/arXiv-2509.03828-b31b1b.svg)](https://arxiv.org/abs/2509.03828)
 
-Model Context Protocol (MCP) server for mapping clinical terminology to Observational Medical Outcomes Partnership (OMOP) concepts using Large Language Models (LLMs).
+Model Context Protocol (MCP) server for mapping clinical terminology to Observational Medical Outcomes Partnership (OMOP) concepts using Large Language Models (LLMs). The vocabulary API is supported by **OMOP HUB**, and you can obtain an API key from [omophub.com](https://omophub.com).
+
+# [Demo Website](https://omapper.vercel.app/)
+
+![OMapper Screenshot](assets/omapper.png)
+
+## Overview
+
+This server provides an agentic framework to standardize medical terms into the OMOP Common Data Model (CDM). It uses the OMOPHub API for vocabulary searching, concept suggestion, and terminology mapping.
 
 ### Installation
 
@@ -18,25 +26,12 @@ Before configuring the MCP server, ensure you have:
    cd omop_mcp
    ```
 
-3. Set up environment variables (only for API calls)
+3. Set up environment variables
 
-   Copy .env.template and configure your API credentials:
+   Copy `.env.template` to `.env` and fill in your API credentials. You will need both an LLM provider key and an **[OMOPHUB_API_KEY](https://omophub.com)** (for vocabulary lookups).
 
    ```bash
    cp .env.template .env
-   ```
-
-   Edit `.env` with API credentials:
-
-   ```bash
-   # Azure OpenAI Configuration
-   AZURE_OPENAI_ENDPOINT=
-   AZURE_OPENAI_API_KEY=
-   AZURE_API_VERSION=
-   MODEL_NAME=
-
-   # OpenAI Configuration (alternative)
-   OPENAI_API_KEY=
    ```
 
 ### Configuration for Claude Desktop
@@ -65,30 +60,27 @@ Replace `<path-to-local-repo>` with the actual path to your cloned repository.
 
 ## Features
 
-The OMOP MCP server provides the `find_omop_concept` tool for:
+The OMOP MCP server provides tools and resources for:
 
-- Mapping clinical terminology to OMOP concepts
-- Validating terminology mappings
-- Searching OMOP vocabulary
-- Converting between different clinical coding systems
+- **Mapping clinical terminology**: Intelligent mapping of free-text terms to standardized OMOP concepts.
+- **Vocabulary Search**: Direct access to OMOP vocabulary via `find_omop_concept`.
+- **Batch Processing**: Tool for mapping multiple concepts from a CSV file.
+- **Preferred Vocabularies**: Automatic domain-specific vocabulary prioritization (e.g., LOINC for measurements, SNOMED for conditions).
+- **Live Documentation**: Resource access to live OMOP CDM documentation.
 
 ## Usage Example
 
-- It is recommended to specify the OMOP field and table name in the prompt for improved accuracy.
-  Refer to [omop_concept_id_fields.json](src/omop_mcp/data/omop_concept_id_fields.json) for the list of OMOP fields and tables that store concept IDs.
-
-- You can specify preferred vocabularies for the mapping in order of priority (e.g., "SNOMED preferred" or "LOINC > SNOMED > RxNorm").
+The agent is most effective when you provide context such as the OMOP table or field name.
 
 **Prompt:**
 
 ```
-Map `Temperature Temporal Scanner - RR` for `measurement_concept_id`
-in the `measurement` table.
+Map `Temperature Temporal Scanner - RR` for `measurement_concept_id` in the `measurement` table.
 ```
 
-**Response:**
+**Response Example:**
 
-```
+```text
 CONCEPT_ID: 46235152
 CODE: 75539-7
 NAME: Body temperature - Temporal artery
@@ -97,13 +89,8 @@ CONCEPT: Standard
 VALIDITY: Valid
 DOMAIN: Measurement
 VOCAB: LOINC
+REASON: This LOINC concept specifically represents body temperature measured at the temporal artery.
 URL: https://athena.ohdsi.org/search-terms/terms/46235152
-REASON: This LOINC concept specifically represents body temperature measured
-at the temporal artery, which is what a temporal scanner measures.
-The "RR" in your source term likely refers to "Recovery Room" or
-another location/department indicator, but in OMOP, the location would
-typically be captured in a separate field rather than
-as part of the measurement concept itself.
 ```
 
 ## Contributing
