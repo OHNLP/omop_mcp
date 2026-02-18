@@ -21,21 +21,6 @@ BASE_DIR = Path(__file__).parent
 DATA_FILE = Path(
     os.getenv("OMOP_DATA_FILE", str(BASE_DIR / "data" / "omop_concept_id_fields.json"))
 )
-
-# DEBUG: Print directory contents to debug Railway deployment issues
-try:
-    print(f"DEBUG: BASE_DIR = {BASE_DIR}")
-    print(f"DEBUG: DATA_FILE = {DATA_FILE}")
-    print(f"DEBUG: BASE_DIR exists: {BASE_DIR.exists()}")
-    if BASE_DIR.exists():
-        print(f"DEBUG: Contents of BASE_DIR: {[x.name for x in BASE_DIR.iterdir()]}")
-    data_dir = BASE_DIR / "data"
-    print(f"DEBUG: data_dir exists: {data_dir.exists()}")
-    if data_dir.exists():
-        print(f"DEBUG: Contents of data_dir: {[x.name for x in data_dir.iterdir()]}")
-except Exception as e:
-    print(f"DEBUG: Error inspecting directories: {e}")
-
 # Load OMOP CDM table/field mapping from JSON file
 with open(DATA_FILE, "r") as f:
     OMOP_CDM = json.load(f)
