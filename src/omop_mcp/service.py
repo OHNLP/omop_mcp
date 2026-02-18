@@ -115,6 +115,17 @@ class MCPAgentService:
             )
 
             response_text = result.get("response", "")
+            debug_info = result.get("debug_info", {})
+
+            # If general question, return the answer directly
+            if debug_info.get("intent") == "general":
+                processing_time = time.time() - start_time
+                return {
+                    "message": response_text,
+                    "reasoning": None,
+                    "concepts": [],
+                    "processing_time": processing_time,
+                }
 
             # Parse using omop_mcp.utils
             parsed = omop_utils.parse_agent_response(response_text)
