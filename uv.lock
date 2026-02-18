@@ -1655,7 +1655,7 @@ requires-dist = [
     { name = "httpx" },
     { name = "ipykernel", specifier = ">=7.2.0" },
     { name = "isort", marker = "extra == 'dev'" },
-    { name = "langchain", specifier = "==0.3.0" },
+    { name = "langchain", specifier = ">=0.3.0" },
     { name = "langchain-anthropic" },
     { name = "langchain-google-genai" },
     { name = "langchain-huggingface" },
