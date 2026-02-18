@@ -26,7 +26,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.omophub.com/v1")
+API_BASE_URL = "https://api.omophub.com/v1"
 
 
 def get_api_headers() -> dict:
