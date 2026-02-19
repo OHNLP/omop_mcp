@@ -5,7 +5,7 @@
 
 Model Context Protocol (MCP) server for mapping clinical terminology to Observational Medical Outcomes Partnership (OMOP) concepts using Large Language Models (LLMs). The vocabulary API is supported by **OMOP HUB**, and you can obtain an API key from [omophub.com](https://omophub.com).
 
-# [Demo Website](https://omapper.vercel.app/)
+# Demo Website [omapper](https://omapper.org)
 
 ![OMapper Screenshot](assets/omapper.png)
 
