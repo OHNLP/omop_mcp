@@ -9,6 +9,10 @@ Model Context Protocol (MCP) server for mapping clinical terminology to Observat
 
 ![OMapper Screenshot](assets/omapper.png)
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/ohnlp-omop-mcp).
+
 ## Overview
 
 This server provides an agentic framework to standardize medical terms into the OMOP Common Data Model (CDM). It uses the OMOPHub API for vocabulary searching, concept suggestion, and terminology mapping.
