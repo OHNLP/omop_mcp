@@ -202,8 +202,11 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             omop_field = row.get("omop_field", "")
             omop_table = row.get("omop_table", "")
             result = await find_omop_concept(keyword, omop_table, omop_field)
-            # Merge result into row
-            row.update(result)
+            candidates = result.get("candidates") or []
+            if candidates:
+                row.update(candidates[0])
+            else:
+                row["reason"] = result.get("error", "no candidates returned")
             writer.writerow(row)
     return output.getvalue()
 
