@@ -162,7 +162,7 @@ async def find_omop_concept(
             "validity": "Valid" if validity is None else validity,
             "domain": c.get("domain_id", ""),
             "vocab": c.get("vocabulary_id", ""),
-            "url": f"https://athena.ohdsi.org/search-terms/terms/{cid}",
+            "url": f"https://omophub.com/concepts/{cid}",
         }
         candidates.append(candidate)
 
