@@ -90,7 +90,7 @@ VALIDITY: Valid
 DOMAIN: Measurement
 VOCAB: LOINC
 REASON: This LOINC concept specifically represents body temperature measured at the temporal artery.
-URL: https://athena.ohdsi.org/search-terms/terms/46235152
+URL: https://omophub.com/concepts/46235152
 ```
 
 ## Contributing
