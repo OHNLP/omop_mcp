@@ -2,22 +2,25 @@ import csv
 import io
 import json
 import logging
+import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-from bs4 import BeautifulSoup
-
-logging.basicConfig(level=logging.INFO)
-import aiohttp
+import httpx
 import mcp.types as types
+from bs4 import BeautifulSoup
 from mcp.server.fastmcp import FastMCP
 
 from omop_mcp import utils
 from omop_mcp.prompts import EXAMPLE_INPUT, EXAMPLE_OUTPUT, MCP_DOC_INSTRUCTION
 
-BASE_DIR = Path(__file__).parent
-DATA_FILE = BASE_DIR / "data" / "omop_concept_id_fields.json"
+logging.basicConfig(level=logging.INFO)
 
+BASE_DIR = Path(__file__).parent
+# Allow environment variable override for data file path
+DATA_FILE = Path(
+    os.getenv("OMOP_DATA_FILE", str(BASE_DIR / "data" / "omop_concept_id_fields.json"))
+)
 # Load OMOP CDM table/field mapping from JSON file
 with open(DATA_FILE, "r") as f:
     OMOP_CDM = json.load(f)
@@ -27,7 +30,7 @@ mcp = FastMCP(name="omop_concept_mapper")
 
 
 @mcp.resource("omop://tables")
-async def list_omop_tables() -> Dict[str, List[str]]:
+async def list_omop_tables() -> dict[str, list[str]]:
     """List all OMOP CDM tables and their concept ID fields."""
     return OMOP_CDM
 
@@ -36,10 +39,11 @@ async def list_omop_tables() -> Dict[str, List[str]]:
 async def omop_documentation() -> str:
     """Fetch live OMOP CDM documentation including vocabulary rules."""
     url = "https://ohdsi.github.io/CommonDataModel/vocabulary.html"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status == 200:
-                html_content = await response.text()
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=30.0)
+            if response.status_code == 200:
+                html_content = response.text
                 soup = BeautifulSoup(html_content, "html.parser")
 
                 # Remove script and style elements
@@ -60,11 +64,16 @@ async def omop_documentation() -> str:
                         phrase.strip() for line in lines for phrase in line.split("  ")
                     )
                     clean_text = " ".join(chunk for chunk in chunks if chunk)
-    return clean_text
+                    return clean_text
+    except Exception as e:
+        logging.error(f"Failed to fetch OMOP documentation: {e}")
+        return f"Error fetching documentation: {str(e)}"
+
+    return "Documentation is currently unavailable."
 
 
 @mcp.resource("omop://preferred_vocabularies")
-async def get_vocabulary_preference() -> Dict[str, List[str]]:
+async def get_vocabulary_preference() -> dict[str, list[str]]:
     """Preferred vocabulary for each OMOP domain in the order of preference."""
     return {
         "measurement": ["LOINC", "SNOMED"],
@@ -111,7 +120,7 @@ async def map_clinical_concept() -> types.GetPromptResult:
 @mcp.tool()
 async def find_omop_concept(
     keyword: str, omop_table: str, omop_field: str, max_results: int = 20
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Find OMOP concepts for a given keyword, table, and field.
     Returns multiple candidates for LLM to choose from based on context.
@@ -130,29 +139,30 @@ async def find_omop_concept(
     )
 
     try:
-        concepts = await utils.search_athena_concept_async(keyword)
+        concepts = await utils.search_concepts_async(keyword, max_results)
     except Exception as e:
-        logging.error(f"Athena API call failed: {e}")
-        raise RuntimeError(f"Athena API is not accessible: {e}") from e
+        logging.error(f"API call failed: {e}")
+        raise RuntimeError(f"OMOP vocabulary API is not accessible: {e}") from e
 
     if not concepts:
         return {
             "error": f"No results found for keyword '{keyword}'. The search term may not exist in the OMOP vocabulary.",
         }
 
-    # Return multiple candidates with all their metadata for LLM to evaluate
     candidates = []
-    for i, c in enumerate(concepts[:max_results]):
+    for c in concepts[:max_results]:
+        cid = c.get("concept_id", "")
+        validity = c.get("invalid_reason")
         candidate = {
-            "concept_id": c.get("id", ""),
-            "code": c.get("code", ""),
-            "name": c.get("name", ""),
-            "class": c.get("className", ""),
-            "concept": c.get("standardConcept", ""),
-            "validity": c.get("invalidReason", c.get("validity", "")),
-            "domain": c.get("domain", c.get("domainId", "")),
-            "vocab": c.get("vocabulary", c.get("vocabularyId", "")),
-            "url": f"https://athena.ohdsi.org/search-terms/terms/{c.get('id', '')}",
+            "concept_id": cid,
+            "code": c.get("concept_code", ""),
+            "name": c.get("concept_name", ""),
+            "class": c.get("concept_class_id", ""),
+            "concept": c.get("standard_concept", ""),
+            "validity": "Valid" if validity is None else validity,
+            "domain": c.get("domain_id", ""),
+            "vocab": c.get("vocabulary_id", ""),
+            "url": f"https://omophub.com/concepts/{cid}",
         }
         candidates.append(candidate)
 
@@ -183,7 +193,7 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
     output = io.StringIO()
     with open(csv_path, newline="", encoding="utf-8") as infile:
         reader = csv.DictReader(infile)
-        fieldnames = reader.fieldnames + [
+        extra_cols = [
             "concept_id",
             "code",
             "name",
@@ -195,6 +205,7 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             "url",
             "reason",
         ]
+        fieldnames = list(reader.fieldnames or []) + extra_cols
         writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
         for row in reader:
@@ -202,8 +213,16 @@ async def batch_map_concepts_from_csv(csv_path: str) -> str:
             omop_field = row.get("omop_field", "")
             omop_table = row.get("omop_table", "")
             result = await find_omop_concept(keyword, omop_table, omop_field)
-            # Merge result into row
-            row.update(result)
+
+            # Extract the top candidate's flat fields (or empty on error)
+            candidates = result.get("candidates", [])
+            if candidates:
+                top = candidates[0]
+                for col in extra_cols:
+                    row[col] = top.get(col, "")
+            else:
+                for col in extra_cols:
+                    row[col] = result.get("error", "")
             writer.writerow(row)
     return output.getvalue()
 

@@ -1,7 +1,7 @@
 MCP_DOC_INSTRUCTION = """
 When selecting the best OMOP concept and vocabulary, ALWAYS check the omop://documentation resource first for official OMOP CDM v5.4 vocabulary rules and mapping guidelines.
 
-Prefer concepts that are marked as 'Standard' and 'Valid'. When selecting the best OMOP concept and vocabulary, 
+Prefer concepts that are marked as 'Standard' and 'Valid'. When selecting the best OMOP concept and vocabulary, always check the preferred vocabulary order for the relevant domain.
 
 **IMPORTANT: Before making any vocabulary decisions, access omop://documentation and omop://preferred_vocabularies to see the current guidelines and preferences.**
 
@@ -59,5 +59,5 @@ CONCEPT: Standard
 VALIDITY: Valid
 DOMAIN: Measurement
 VOCAB: LOINC
-URL: https://athena.ohdsi.org/search-terms/terms/46235152
+URL: https://omophub.com/concepts/46235152
 REASON: This LOINC concept specifically represents body temperature measured at the temporal artery, which is what a temporal scanner measures. The \"RR\" in your source term likely refers to \"Recovery Room\" or another location/department indicator, but in OMOP, the location would typically be captured in a separate field rather than as part of the measurement concept itself."""
